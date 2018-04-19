@@ -1,0 +1,4 @@
+std_msgs/String windowName
+sensor_msgs/Image newImage
+bool display
+---

@@ -1,0 +1,6 @@
+<launch>
+  <arg name="inFolder" default="/home/ryan/DataSets/raw/auto/1/Extracted"/>
+  <arg name="debayer" default="False"/>
+  <arg name="delay" default="1"/>
+  <node name="display" pkg="dataset" type="displayFolder.py" args="$(arg inFolder) $(arg debayer) $(arg delay)"/>
+</launch> 

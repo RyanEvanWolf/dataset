@@ -1,0 +1,11 @@
+<launch>
+  <arg name="outputFolder" default="/media/ryan/DATA/Bags"/>
+  <arg name="datasetMetaDirectory" default ="/home/ryan/git/gpsData/1/metaData.txt"/>
+  <arg name="bumblebee_name" default="bumblebee"/>
+  <arg name="TrackNumber" default="1"/>
+  <arg name="LoopNumber" default="1"/>
+  <arg name="MaxRecordTime" default="10h"/>
+  <node name="stereoImageBag" pkg="rosbag" type="record" args="/tf /viso_extractor/output -e /$(arg bumblebee_name)/(.*)/ROI /$(arg bumblebee_name)/(.*)/image /$(arg bumblebee_name)/(.*)/image_rect   --output-name=$(arg outputFolder)/stereoBag_$(arg TrackNumber)_$(arg LoopNumber) --duration=$(arg MaxRecordTime)"/>
+  <node name="loop_playback" pkg="dataset" type="playbackLoop.py" args="$(arg TrackNumber) $(arg LoopNumber) $(arg datasetMetaDirectory)" output="screen" />
+</launch>
+ 

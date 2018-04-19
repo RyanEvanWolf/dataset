@@ -1,0 +1,5 @@
+ 
+<launch>
+  <node name="display" pkg="dataset" type="displayImages.py" output="screen" args="left right stereo"/>
+  <node name="stereoSimulation" pkg="dataset" type="Simulations.py" output="screen"/>
+</launch>

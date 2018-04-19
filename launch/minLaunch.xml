@@ -1,0 +1,8 @@
+ <launch>
+  <arg name="BumblebeeConfigurationFolder" default="/home/ryan/Calibration"/>
+  <arg name="publishTransform" default="True"/>
+  <node name="bumblebee_configuration" type="bumblebee_configuration.py" output="screen" pkg="bumblebee" args="$(arg BumblebeeConfigurationFolder) bumblebee_configuration $(arg publishTransform)"/>
+  <node name="bumblebee" type="bumblebee_node.py" output="screen" pkg="bumblebee" args="bumblebee_configuration"/>
+  <include file="$(find viso_extractor)/launch/visoConfig.xml" />
+ </launch>
+

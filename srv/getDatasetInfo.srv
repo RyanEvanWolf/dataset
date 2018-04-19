@@ -1,0 +1,5 @@
+---
+std_msgs/String rootFolder
+std_msgs/Int32 currentIndex
+std_msgs/String imageName
+std_msgs/String status

@@ -1,0 +1,85 @@
+#!/usr/bin/env python
+#####ros related imports
+import rospy 
+from front_end.srv import singleImageDetection,singleImageDetectionRequest
+from cv_bridge import CvBridge
+import os
+import cv2
+import sys
+from front_end.utils import *
+import time
+import pickle
+
+import argparse
+
+import rosbag
+
+cvb=CvBridge()
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument("stereo_bag_dir")
+    parser.add_argument("output_pickle_dir")
+    parser.add_argument("--detector",default="FAST")
+    parser.add_argument("--max_images",default=-1,type=int)
+    parser.add_argument("--output_prefix",default="",type=str)
+    args=parser.parse_args()
+
+    print("extracting images from : "+args.stereo_bag_dir)
+    print(args)
+    inputBag=rosbag.Bag(args.stereo_bag_dir)
+    leftImages=[]
+    rightImages=[]
+
+    print("extracting Topic Data")
+    for topic,msg,t in inputBag.read_messages(topics=['/bumblebee/left/ROI','/bumblebee/right/ROI']):
+        if(topic=="/bumblebee/left/ROI"):
+            leftImages.append(msg)
+        if(topic=="/bumblebee/right/ROI"):
+            rightImages.append(msg)
+        print(len(leftImages))
+        if((args.max_images!=-1)and((len(leftImages)+len(rightImages))>=2*args.max_images)):
+            print("halted image loading at total = "+str(args.max_images))
+            break
+    inputBag.close()
+    newRequest=singleImageDetectionRequest()
+    ###get detector Settings
+    newRequest.detectorName=args.detector
+    newRequest.returnKP=False
+    tags,newRequest.det_attrib=getFAST_Attributes()
+    ###get descriptor Settings
+    #tags2,fakeVar,newRequest.desc_attrib=getSURF_Attributes()
+    #newRequest.descriptorName="SURF"
+
+    serviceName="feature_node/singleImageDetection"
+    rospy.init_node('extract_loop_features')
+
+    rospy.wait_for_service(serviceName)
+    serv=rospy.ServiceProxy(serviceName,singleImageDetection)
+    results={}
+    results["settings"]=getFAST_Attributes()[1]
+    results["data"]=[]
+    results["detectorName"]=newRequest.detectorName
+
+    for f in range(0,len(leftImages)):
+        newRequest.leftImg=leftImages[f]
+        newRequest.rightImg=rightImages[f]
+        ans=serv(newRequest)
+        
+        results["data"].append(ans)
+        print(f,results["data"][-1].outputFrames[0].nLeft,results["data"][-1].outputFrames[0].nRight)
+        print("-----")
+    ##determine outFile
+    fileName=args.output_pickle_dir
+    if(args.output_prefix!=""):
+        fileName+="/"+args.output_prefix+".p"
+    else:
+        name=args.stereo_bag_dir[args.stereo_bag_dir.find("_"):args.stereo_bag_dir.rfind(".")]
+        fileName+="/"+name+"/"+args.detector+"/baseDetectionResults.p"
+    if(not os.path.exists(os.path.dirname(fileName))):
+        os.makedirs(os.path.dirname(fileName))
+    outFile=open(fileName,"wb")
+    print("outFile",fileName)
+    pickle.dump(results,outFile)
+    outFile.close()
+    print("completed")

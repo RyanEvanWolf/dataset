@@ -1,0 +1,5 @@
+std_msgs/String command
+---
+std_msgs/Int32 currentIndex
+std_msgs/String status
+bool success

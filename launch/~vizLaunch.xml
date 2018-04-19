@@ -1,0 +1,18 @@
+<launch>
+  <arg name="outputFolder" default="/home/ryan/git/Output/full_B1"/>
+  <arg name="stereoBagInput" default="/home/ryan/git/Output/full_B1/stereoImageBag.bag" />
+  <param name="use_sim_time" value="true"/>
+  <param name="odom_frame_id" value="world" />
+  <param name="base_link_frame_id" value="/base_link"/>
+  <param name="approximate_sync" value="True" type="bool"/>
+  <param name="max_features" value="50" type="int"/>
+  <param name="outlier_flow_tolerance" value="10" type="int"/>
+  <param name="nms_tau" value="7" type="int"/>
+  
+  <param name="refinement" value="2" type="int"/>
+  <remap from="stereo" to="/bumblebee_node"/>
+  <remap from="image" to="image_rect"/>
+  <node name="visoBag" pkg="rosbag" type="record" args="-e /lib_viso/(.*) --output-name=$(arg outputFolder)/visoBag "/>
+  <node name="lib_viso" pkg="viso2_ros" type="stereo_odometer" output="screen"/>
+</launch>
+ 

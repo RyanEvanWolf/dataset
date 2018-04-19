@@ -1,0 +1,10 @@
+<launch>
+  <param name="/endSequence" type="bool" value="False" />
+  <node name="leftRectified_save" type="createVideo.py" pkg="dataset" args="/bumblebee/colour/leftRectified 1024 768" output="screen"/>
+  <node name="rightRectified_save" type="createVideo.py" pkg="dataset" args="/bumblebee/colour/rightRectified 1024 768" output="screen"/>
+  <node name="leftColour_save" type="createVideo.py" pkg="dataset" args="/bumblebee/colour/left 1024 768" output="screen"/>
+  <node name="rightColour_save" type="createVideo.py" pkg="dataset" args="/bumblebee/colour/right 1024 768" output="screen"/>
+  <node name="lROI_save" type="createVideo.py" pkg="dataset" args="/bumblebee/leftROI 778 553" output="screen"/>
+  <node name="rROI_save" type="createVideo.py" pkg="dataset" args="/bumblebee/rightROI 819 545" output="screen"/>
+  <node name="playback" type="playbackDataset.py" pkg="dataset" args="80 /bumblebee/leftROI/wait" output="screen"/>
+</launch>

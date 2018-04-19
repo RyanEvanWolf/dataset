@@ -1,0 +1,8 @@
+
+<launch>
+  <arg name="trackName" default="A"/>
+  <arg name="outputFolder" default="/media/ryan/DATA"/>
+  <arg name="MaxImages" default="20000"/>
+  <node name="rawImageBag" pkg="rosbag" type="record" args="/tf -e /dataset/currentImage --output-name=$(arg outputFolder)/rawImageBag_$(arg trackName)"/>
+  <node name="playback" type="playbackDataset.py" pkg="dataset" args="$(arg maxImages)" output="screen"/>
+</launch>

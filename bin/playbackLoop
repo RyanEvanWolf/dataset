@@ -1,0 +1,28 @@
+#!/usr/bin/env python
+import os
+import cv2
+import sys
+
+import time
+
+import rospy
+import argparse
+from dataset.bumbleDataSet import videoSequence,loop
+from front_end.utils import *
+
+if __name__ == '__main__':
+    rospy.init_node('playback_loop')
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("track_id")
+    parser.add_argument("loop_number")
+    parser.add_argument("meta_data")
+    args = parser.parse_args()
+    sequence=videoSequence(args.meta_data)
+    sequence.printSummary()
+    
+    print("beginning Sequence")
+    sequence.playbackLoop(args.track_id,int(args.loop_number))
+
+    print("end")
+

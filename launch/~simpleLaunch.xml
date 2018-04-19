@@ -1,0 +1,11 @@
+<launch>
+  <arg name="datasetInputFolder" default="/home/ryan/DataSets/SortedDataSets/B/B1" />
+  <arg name="StereoRectFile" default="/media/ryan/3031-95F7/cal/Rectified_five_parameter.xml"/>
+  <node name="dataset" pkg="dataset" type="bumbleDataSet.py" output="screen" args="$(arg datasetInputFolder)" />
+  <node name="bumblebee_configuration" pkg="bumblebee" type="viso_config_node" args="$(arg StereoRectFile)" output="screen"/>
+  <node name="bumblebee_node" pkg="bumblebee" type="bumblebee_node.py" output="screen"/>
+  <node name="convert2World" pkg="tf" type="static_transform_publisher" output="screen" args="0 0 0 0 0 0 1 world /odom 20"/>
+  <node name="base2left" pkg="tf" type="static_transform_publisher" output="screen" args="0 0 0 0 0 0 1 /base_link /bumblebee_node/left/image_rect 20"/>
+  <node name="base2right" pkg="tf" type="static_transform_publisher" output="screen" args="-0.11898 0 0 0 0 0 1 /bumblebee_node/left/image_rect /bumblebee_node/right/image_rect 20"/>
+</launch>
+ 
