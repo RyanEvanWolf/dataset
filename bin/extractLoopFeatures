@@ -2,6 +2,7 @@
 #####ros related imports
 import rospy 
 from front_end.srv import singleImageDetection,singleImageDetectionRequest
+from dataset.utils import Directories,getBagID
 from cv_bridge import CvBridge
 import os
 import cv2
@@ -17,17 +18,18 @@ import rosbag
 cvb=CvBridge()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument("stereo_bag_dir")
-    parser.add_argument("output_pickle_dir")
+    print(sys.argv)
+    parser =argparse.ArgumentParser()
+    parser.add_argument("rootDir")
+    parser.add_argument("loopID")
     parser.add_argument("--detector",default="FAST")
     parser.add_argument("--max_images",default=-1,type=int)
-    parser.add_argument("--output_prefix",default="",type=str)
     args=parser.parse_args()
 
-    print("extracting images from : "+args.stereo_bag_dir)
-    print(args)
-    inputBag=rosbag.Bag(args.stereo_bag_dir)
+    projectFolder=Directories(args.rootDir) 
+    print(projectFolder.getBagPath(args.loopID))
+
+    inputBag=rosbag.Bag(projectFolder.getBagPath(args.loopID))
     leftImages=[]
     rightImages=[]
 
@@ -42,6 +44,11 @@ if __name__ == '__main__':
             print("halted image loading at total = "+str(args.max_images))
             break
     inputBag.close()
+
+    ######
+    ##pick detector based on input 
+
+
     newRequest=singleImageDetectionRequest()
     ###get detector Settings
     newRequest.detectorName=args.detector
@@ -70,12 +77,12 @@ if __name__ == '__main__':
         print(f,results["data"][-1].outputFrames[0].nLeft,results["data"][-1].outputFrames[0].nRight)
         print("-----")
     ##determine outFile
-    fileName=args.output_pickle_dir
-    if(args.output_prefix!=""):
-        fileName+="/"+args.output_prefix+".p"
-    else:
-        name=args.stereo_bag_dir[args.stereo_bag_dir.find("_"):args.stereo_bag_dir.rfind(".")]
-        fileName+="/"+name+"/"+args.detector+"/baseDetectionResults.p"
+
+    print(projectFolder.getFeaturePath(args.loopID,args.detector))
+    print(projectFolder.getFeaturePickle(args.loopID,args.detector))
+
+
+    fileName=projectFolder.getFeaturePickle(args.loopID,args.detector)
     if(not os.path.exists(os.path.dirname(fileName))):
         os.makedirs(os.path.dirname(fileName))
     outFile=open(fileName,"wb")
@@ -83,3 +90,4 @@ if __name__ == '__main__':
     pickle.dump(results,outFile)
     outFile.close()
     print("completed")
+

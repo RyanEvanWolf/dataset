@@ -51,3 +51,21 @@ roslaunch dataset minLaunch.xml BumblebeeConfigurationFolder:=DIRECTORY_TO_CALIB
 2) once these have started up, start recording the stereo output topics and saving them to bags, give a track and loop number to select which set of images to use
 
 roslaunch dataset CreateStereoLoop.xml
+
+
+
+
+######################
+##extracting features from looped data
+##
+
+1) initilaize the front_end feature node for feature extraction
+rosrun front_end feature_node
+
+2)Begin extracting features from a rosbag that contains stereo rectified Images
+
+rosrun dataset extractLoopFeatures.py /home/ryan/DATA/Bags/stereoBag_A_1.bag /home/ryan/DATA/Features/_A_1/FAST/baseDetection.p
+
+3) generate stereo summary statistics 
+
+rosrun dataset extractStereo.py
