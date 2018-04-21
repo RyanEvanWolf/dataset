@@ -18,95 +18,100 @@ from front_end.utils import *
 
 from front_end.stereo import Algorithms
 
+from dataset.utils import Directories
+
 cvb=CvBridge()
 
+parser =argparse.ArgumentParser()
+parser.add_argument("rootDir")
+parser.add_argument("loopID")
+parser.add_argument("detector")
+parser.add_argument("key")
+args=parser.parse_args()
 
-if __name__ == '__main__':
-    rospy.init_node('extract_stereo')
-    print(sys.argv)
-    parser = argparse.ArgumentParser()
-    parser.add_argument("stereo_bag_dir")
-    parser.add_argument("curve_dir")
-    parser.add_argument("key")
-    args = parser.parse_args()
+projectFolder=Directories(args.rootDir)
+pickleDir=projectFolder.getCurvePickle(args.loopID,args.detector)
 
-    pickleFile=open(args.curve_dir,"r")
-    inputSettings=pickle.load(pickleFile)
-    pickleFile.close()
-    print("settings Loaded")
-    print(inputSettings["operatingCurves"].keys())
-    print("beginning Sequence")
+print("loading Data from "+pickleDir)
+inputPickle=open(pickleDir,"rb")
+dataIn=pickle.load(inputPickle)
+inputPickle.close()
+print("Data Loaded")
 
-    print("extracting images from : "+args.stereo_bag_dir)
-    inputBag=rosbag.Bag(args.stereo_bag_dir)
-    leftImages=[]
-    rightImages=[]
+rospy.init_node('extract_stereo')
 
-    print("extracting Topic Data")
-    for topic,msg,t in inputBag.read_messages(topics=['/bumblebee/left/ROI','/bumblebee/right/ROI']):
-        if(topic=="/bumblebee/left/ROI"):
-            leftImages.append(msg)
-        if(topic=="/bumblebee/right/ROI"):
-            rightImages.append(msg)
-        print(len(leftImages))
-        if((len(leftImages)+len(rightImages))>=2*len(inputSettings["operatingCurves"][args.key])):
-            print("halted image loading at total = "+str(len(inputSettings["operatingCurves"][args.key])))
-            break
-    inputBag.close()
-    ####establish service connections
-    kpServiceName="feature_node/singleImageDetection"
-    descriptorServiceName="feature_node/singleImageDescription"
-    stereoServiceName="stereo_node/singleStereo"
-    rospy.wait_for_service(kpServiceName)
-    rospy.wait_for_service(descriptorServiceName)
-    rospy.wait_for_service(stereoServiceName)
+inputBag=rosbag.Bag(projectFolder.getBagPath(args.loopID))
+leftImages=[]
+rightImages=[]
 
-    kpService=rospy.ServiceProxy(kpServiceName,singleImageDetection)
-    descriptorService=rospy.ServiceProxy(descriptorServiceName,singleImageDescription)
-    stereoService=rospy.ServiceProxy(stereoServiceName,singleStereo)
+print("extracting Topic Data")
+for topic,msg,t in inputBag.read_messages(topics=['/bumblebee/left/ROI','/bumblebee/right/ROI']):
+    if(topic=="/bumblebee/left/ROI"):
+        leftImages.append(msg)
+    if(topic=="/bumblebee/right/ROI"):
+        rightImages.append(msg)
+    print(len(leftImages))
+    if((len(leftImages)+len(rightImages))>=2*len(dataIn["operatingCurves"][args.key])):
+        print("halted image loading at total = "+str(len(dataIn["operatingCurves"][args.key])))
+        break
+inputBag.close()
 
-    allDetAttrib=getAllDescriptor_Attributes()
-    #outputName=args.curve_dir[:args.curve_dir.rfind("/")]+"/"+args.key+"_features.p"
+print("Waiting for services")
+####establish service connections
+kpServiceName="feature_node/singleImageDetection"
+descriptorServiceName="feature_node/singleImageDescription"
+stereoServiceName="stereo_node/singleStereo"
+rospy.wait_for_service(kpServiceName)
+rospy.wait_for_service(descriptorServiceName)
+rospy.wait_for_service(stereoServiceName)
 
+print("services Found")
 
-    for f in range(0,1):#len(leftImages)):
-        ###for each image, extract the output data, and save to Results
-        ###get KPS
-        print("getting KeyPoints")
+kpService=rospy.ServiceProxy(kpServiceName,singleImageDetection)
+descriptorService=rospy.ServiceProxy(descriptorServiceName,singleImageDescription)
+stereoService=rospy.ServiceProxy(stereoServiceName,singleStereo)
 
-        ##define the Requests
-        kpRequest=singleImageDetectionRequest()
-        kpRequest.detectorName=inputSettings["name"]
-        kpRequest.returnKP=True
+allDetAttrib=getAllDescriptor_Attributes()
 
-        kpRequest.leftImg=leftImages[f]
-        kpRequest.rightImg=rightImages[f]
-        kpRequest.det_attrib.append(inputSettings["operatingCurves"][args.key][f])
-        ans=kpService(kpRequest)
-        # ###get descriptors
-        print("getting Descriptors")
-        descriptorRequest=singleImageDescriptionRequest()
+print("completed")
+for f in range(0,1):#len(leftImages)):
+    ###for each image, extract the output data, and save to Results
+    ###get KPS
+    print("getting KeyPoints")
 
-        descriptorRequest.leftImg=leftImages[f]
-        descriptorRequest.rightImg=rightImages[f]
-        descriptorRequest.leftFeatures=ans.outputFrames[0].leftFeatures
-        descriptorRequest.rightFeatures=ans.outputFrames[0].rightFeatures
-        ans2=descriptorService(descriptorRequest)
-        print("startingStereo")
-        stereoReq=singleStereoRequest()
-        stereoReq.leftFeatures=descriptorRequest.leftFeatures
-        stereoReq.rightFeatures=descriptorRequest.rightFeatures
-        stereoReq.descriptors=ans2.results
-        stereoReq.inputSettings.append(Algorithms[0])
+    ##define the Requests
+    kpRequest=singleImageDetectionRequest()
+    kpRequest.detectorName=dataIn["name"]
+    kpRequest.returnKP=True
 
-        ans3=stereoService(stereoReq)
-        print("endReq")
-        print(f)
+    kpRequest.leftImg=leftImages[f]
+    kpRequest.rightImg=rightImages[f]
+    kpRequest.det_attrib.append(dataIn["operatingCurves"][args.key][f])
+    ans=kpService(kpRequest)
+    # ###get descriptors
+    print("getting Descriptors")
+    descriptorRequest=singleImageDescriptionRequest()
 
-    ##save to File 
-    # outFile=open(outputName,"w")
-    # print("outFile",outputName)
-    # pickle.dump(results,outFile)
-    # outFile.close()
-    print("completed")
+    descriptorRequest.leftImg=leftImages[f]
+    descriptorRequest.rightImg=rightImages[f]
+    descriptorRequest.leftFeatures=ans.outputFrames[0].leftFeatures
+    descriptorRequest.rightFeatures=ans.outputFrames[0].rightFeatures
+    ans2=descriptorService(descriptorRequest)
+    print("startingStereo")
+    stereoReq=singleStereoRequest()
+    stereoReq.leftFeatures=descriptorRequest.leftFeatures
+    stereoReq.rightFeatures=descriptorRequest.rightFeatures
+    stereoReq.descriptors=ans2.results
+    stereoReq.inputSettings.append(Algorithms[0])
+
+    ans3=stereoService(stereoReq)
+    print("endReq")
+    print(f)
+
+#     ##save to File 
+#     # outFile=open(outputName,"w")
+#     # print("outFile",outputName)
+#     # pickle.dump(results,outFile)
+#     # outFile.close()
+#     print("completed")
  

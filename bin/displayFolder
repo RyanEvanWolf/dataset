@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+
+import rospy
+import cv2
+from dataset.bumbleDataSet import bumbleDataSet
+import sys
+import time
+import argparse
+
+
+rospy.init_node('displayFolder')
+
+
+parser =argparse.ArgumentParser()
+parser.add_argument("directory")
+parser.add_argument("--debayer",default=False,type=bool)
+parser.add_argument("--delayTime",default=66,type=int)
+args=parser.parse_args()
+
+print(args.debayer)
+
+inData=bumbleDataSet()
+inData.loadFiles(args.directory)
+cv2.namedWindow("image",cv2.WINDOW_NORMAL)
+
+count=0
+for i in inData.filesList:
+    
+    print(count,i)
+    time.sleep(1)
+    if(args.debayer):
+        cv2.imshow("image",cv2.cvtColor(cv2.imread(i,cv2.IMREAD_GRAYSCALE),cv2.COLOR_BAYER_BG2RGB))
+    else:
+        cv2.imshow("image",cv2.imread(i,cv2.IMREAD_UNCHANGED))
+    cv2.waitKey(args.delayTime)
+    count=count+1
+    if(rospy.is_shutdown()):
+        break
