@@ -12,12 +12,14 @@ from front_end.utils import *
 
 if __name__ == '__main__':
     rospy.init_node('playback_loop')
-
+    print(sys.argv)
     parser = argparse.ArgumentParser()
     parser.add_argument("track_id")
     parser.add_argument("loop_number")
     parser.add_argument("meta_data")
-    args = parser.parse_args()
+    args,unknown = parser.parse_known_args()
+
+    print(args)
     sequence=videoSequence(args.meta_data)
     sequence.printSummary()
     

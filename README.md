@@ -5,6 +5,16 @@ Executes and combines the various SLAM packages to produce useful input and outp
 Example Usage
 
 
+#######
+##
+display a folder of images
+rosrun dataset displayFolder directoryToImages 
+rosrun dataset displayFolder directoryToImages --debayer True --delayTime 66
+
+debayer images before displaying with BG2RGB
+wait 66 ms before displaying a new folder
+
+
 1) begin the base nodes. This includes the dataset server, bumblebee configuration, and bumblebee Rectificaiton Server.
   Edit the baseLaunch.xml file settings, notably the dataset folder where the raw captured images reside, and the stereo output configuration folder.
     Add the tag publishTransform = True for this first bag.
@@ -51,7 +61,21 @@ roslaunch dataset minLaunch.xml BumblebeeConfigurationFolder:=DIRECTORY_TO_CALIB
 2) once these have started up, start recording the stereo output topics and saving them to bags, give a track and loop number to select which set of images to use
 
 roslaunch dataset CreateStereoLoop.xml
+################
+###to get libviso and loop bags
 
+1) execute configuration script
+->lib viso parameters must be adjusted manually in the visoConfig.xml file in viso_extractor
+
+
+roslaunch dataset visoLoopLaunch.xml
+
+2)
+ensure that the DATAFolder/Bags folder has been CreateDatasetBag
+->adjust output folders in xml 
+
+
+roslaunch dataset CreateStereoLoop.xml
 
 
 

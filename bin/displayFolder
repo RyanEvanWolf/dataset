@@ -27,7 +27,6 @@ count=0
 for i in inData.filesList:
     
     print(count,i)
-    time.sleep(1)
     if(args.debayer):
         cv2.imshow("image",cv2.cvtColor(cv2.imread(i,cv2.IMREAD_GRAYSCALE),cv2.COLOR_BAYER_BG2RGB))
     else:

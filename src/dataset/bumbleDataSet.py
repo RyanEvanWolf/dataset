@@ -61,8 +61,9 @@ class videoSequence:
             if(linesRead==0):
                 firstTrack=singleTrack(parts[1],parts[0])
                 self.Track[firstTrack.id]=firstTrack
-                secondTrack=singleTrack(parts[3],parts[2])
-                self.Track[secondTrack.id]=secondTrack
+                if(len(parts)>2):
+                    secondTrack=singleTrack(parts[3],parts[2])
+                    self.Track[secondTrack.id]=secondTrack
             else:
                 newLoop=loop(line.strip("\n"))
                 self.Track[parts[0]].loops.append(newLoop)
