@@ -2,12 +2,13 @@
 #####ros related imports
 import rospy 
 from front_end.srv import singleImageDetection,singleImageDetectionRequest
-from dataset.utils import Directories,getBagID
+from front_end.features import detectorLookUpTable
+from dataset.utils import Directories,getBagID,unpackBag
 from cv_bridge import CvBridge
 import os
 import cv2
 import sys
-from front_end.utils import *
+from front_end.features import *
 import time
 import pickle
 
@@ -17,77 +18,51 @@ import rosbag
 
 cvb=CvBridge()
 
-if __name__ == '__main__':
-    print(sys.argv)
-    parser =argparse.ArgumentParser()
-    parser.add_argument("rootDir")
-    parser.add_argument("loopID")
-    parser.add_argument("--detector",default="FAST")
-    parser.add_argument("--max_images",default=-1,type=int)
-    args=parser.parse_args()
+parser =argparse.ArgumentParser()
+parser.add_argument("rootDir")
+parser.add_argument("loopID")
+parser.add_argument("--max_images",default=-1,type=int)
+parser.add_argument("--output_directory",default="/media/ryan/EXTRA/output")
+args,unknown=parser.parse_known_args()
 
-    projectFolder=Directories(args.rootDir) 
-    print(projectFolder.getBagPath(args.loopID))
-
-    inputBag=rosbag.Bag(projectFolder.getBagPath(args.loopID))
-    leftImages=[]
-    rightImages=[]
-
-    print("extracting Topic Data")
-    for topic,msg,t in inputBag.read_messages(topics=['/bumblebee/left/ROI','/bumblebee/right/ROI']):
-        if(topic=="/bumblebee/left/ROI"):
-            leftImages.append(msg)
-        if(topic=="/bumblebee/right/ROI"):
-            rightImages.append(msg)
-        print(len(leftImages))
-        if((args.max_images!=-1)and((len(leftImages)+len(rightImages))>=2*args.max_images)):
-            print("halted image loading at total = "+str(args.max_images))
-            break
-    inputBag.close()
-
-    ######
-    ##pick detector based on input 
+projectFolder=Directories(args.rootDir,args.output_directory) 
+sequenceData=unpackBag(projectFolder.getBagPath(args.loopID),args.max_images)
+table=detectorLookUpTable()
+#####
+#pick detector based on input 
 
 
-    newRequest=singleImageDetectionRequest()
-    ###get detector Settings
-    newRequest.detectorName=args.detector
-    newRequest.returnKP=False
-    tags,newRequest.det_attrib=getFAST_Attributes()
-    ###get descriptor Settings
-    #tags2,fakeVar,newRequest.desc_attrib=getSURF_Attributes()
-    #newRequest.descriptorName="SURF"
+newRequest=singleImageDetectionRequest()
+###get detector Settings
+newRequest.returnKP=False
+newRequest.detID=table.keys()
 
-    serviceName="feature_node/singleImageDetection"
-    rospy.init_node('extract_loop_features')
+serviceName="feature_node/singleImageDetection"
+rospy.init_node('extract_loop_features')
 
-    rospy.wait_for_service(serviceName)
-    serv=rospy.ServiceProxy(serviceName,singleImageDetection)
-    results={}
-    results["settings"]=getFAST_Attributes()[1]
-    results["data"]=[]
-    results["detectorName"]=newRequest.detectorName
+rospy.wait_for_service(serviceName)
+serv=rospy.ServiceProxy(serviceName,singleImageDetection)
+results=[]
 
-    for f in range(0,len(leftImages)):
-        newRequest.leftImg=leftImages[f]
-        newRequest.rightImg=rightImages[f]
-        ans=serv(newRequest)
-        
-        results["data"].append(ans)
-        print(f,results["data"][-1].outputFrames[0].nLeft,results["data"][-1].outputFrames[0].nRight)
-        print("-----")
-    ##determine outFile
-
-    print(projectFolder.getFeaturePath(args.loopID,args.detector))
-    print(projectFolder.getFeaturePickle(args.loopID,args.detector))
+for f in range(0,len(sequenceData["Left"])):
+    newRequest.leftImg=sequenceData["Left"][f]
+    newRequest.rightImg=sequenceData["Right"][f]
+    ans=serv(newRequest)
+    
+    results.append(ans)
+    #print(f,results["data"][-1].outputFrames[0].nLeft,results["data"][-1].outputFrames[0].nRight)
+    print("-----"+str(f)+"/"+str(len(sequenceData["Left"])))
+##determine outFile
 
 
-    fileName=projectFolder.getFeaturePickle(args.loopID,args.detector)
-    if(not os.path.exists(os.path.dirname(fileName))):
-        os.makedirs(os.path.dirname(fileName))
-    outFile=open(fileName,"wb")
-    print("outFile",fileName)
-    pickle.dump(results,outFile)
-    outFile.close()
-    print("completed")
+print(projectFolder.getFeaturePickle(args.loopID))
 
+
+fileName=projectFolder.getFeaturePickle(args.loopID)
+if(not os.path.exists(os.path.dirname(fileName))):
+    os.makedirs(os.path.dirname(fileName))
+outFile=open(fileName,"wb")
+print("outFile",fileName)
+pickle.dump(results,outFile)
+outFile.close()
+print("completed")
