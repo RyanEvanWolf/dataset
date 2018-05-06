@@ -17,7 +17,14 @@ import matplotlib.pyplot as plt
 import matplotlib.style as sty
 import pickle
 import argparse
+
+###
+from front_end.srv import getStereoFeatures,getStereoFeaturesRequest,getStereoFeaturesResponse
+rospy.init_node('curves')
+##
+
 cvb=CvBridge() 
+
 
 parser =argparse.ArgumentParser()
 parser.add_argument("rootDir")
@@ -31,20 +38,65 @@ print("Loading from "+pickleDir)
 features=featureDatabase(pickleDir)
 print("completed Loading")
 sett,OperatingCurves=features.getOperatingCurves("FAST")
+print(OperatingCurves["Maximum"])
 print("complete")
 
 
-projectFolder=Directories(args.rootDir,args.output_directory) 
-pickleDir=projectFolder.getFeaturePickle(args.loopID)
-print("Loading from "+pickleDir)
-features=featureDatabase(pickleDir)
-print("completed Loading")
-sett,OperatingCurves=features.getOperatingCurves("FAST")
-print("complete")
+
 outputSettings={}
-outputSettings["name"]="FAST"
-outputSettings["operatingCurves"]=sett
+outputSettings["FAST"]=sett
 
-outputFileName=projectFolder.getCurvePickle(args.loopID,args.detector)
+
+# #####
+# from dataset.utils import Directories,unpackBag
+# from front_end.features import detectorLookUpTable,descriptorLookUpTable,getDetector
+# detTable=detectorLookUpTable()
+# descTable=descriptorLookUpTable()
+
+
+
+# newRequest=singleImageDetectionRequest()
+# ###get detector Settings
+# newRequest.returnKP=False
+# newRequest.detID=detTable.keys()
+
+
+
+# kpServiceName="feature_node/singleImageDetection"
+# kpService=rospy.ServiceProxy(kpServiceName,singleImageDetection)
+
+
+# stereoServiceName="feature_node/getStereoFeatures"
+# stereoService=rospy.ServiceProxy(stereoServiceName,getStereoFeatures)
+# Bag=unpackBag(projectFolder.getBagPath(args.loopID),5)
+
+# c=[]
+
+# for f in range(0,len(Bag["Left"])):
+#     ###for each image, extract the output data, and save to Results
+#     ###get KPS
+#     # newRequest.leftImg=Bag["Left"][f]
+#     # newRequest.rightImg=Bag["Right"][f]
+#     # ans1=kpService(newRequest)
+
+#     #index=ans1.outputFrames.leftFeatures
+
+#     request=getStereoFeaturesRequest()
+#     request.detID=outputSettings["FAST"]["Maximum"][f]
+#     print(request.detID)
+#     request.descrID=descTable.keys()[0]
+#     request.leftImg=Bag["Left"][f]
+#     request.rightImg=Bag["Right"][f]
+#     ans=stereoService(request)
+#     print(len(ans.latestFeatures.leftFeatures))
+#     c.append(len(ans.latestFeatures.leftFeatures))
+
+# plt.plot(c)
+sett,OperatingCurves=features.getOperatingCurves("SURF")
+
+outputSettings["SURF"]=sett
+
+
+outputFileName=projectFolder.getCurvePickle(args.loopID)
 print(outputFileName)
 pickle.dump(outputSettings,open(outputFileName,"w"))

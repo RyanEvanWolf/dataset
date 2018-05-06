@@ -4,7 +4,7 @@ BAG_FOLDER="Bags"
 FEATURES_FOLDER="Features"
 
 UNSORTED_FEATURES_PICKLE="baseDetection.p"
-OperatingCurvesName="OperatingCurves.p"
+OPERATING_CURVES_PICKLE="OperatingCurves.p"
 
 def OperatingCurveIDs():
     Ids=["Maximum","0.9Maximum","0.8Maximum",
@@ -49,8 +49,8 @@ class Directories:
         return os.listdir(self.bagDir)
     def getBagPath(self,ID):
         return self.bagDir+"/stereo_"+ID+".bag"
-    def getCurvePickle(self,loopID,DetectorID):
-        return self.getFeaturePath(loopID,DetectorID)+"/"+OperatingCurvesName
+    def getCurvePickle(self,loopID):
+        return self.getFeaturePath(loopID)+"/"+OPERATING_CURVES_PICKLE
     def getFeaturePath(self,loopID):
         return self.featDir+"/"+loopID
     def getFeaturePickle(self,loopID):

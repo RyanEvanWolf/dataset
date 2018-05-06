@@ -50,6 +50,13 @@ First create a rosbag of stereo images.
   roslaunch dataset CreateStereoBag.xml 
   rosplay 
   
+
+  
+  
+----------------
+rosrun dataset extractLoopFeatures /home/ryan/DATA3 A_1 --max_images 10
+-----------------
+  
   
   
 To execute in looped mode where a dataset has been split up into individual loops, provide a metaData file as shown in github project gpsData

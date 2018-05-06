@@ -50,9 +50,8 @@ for f in range(0,len(sequenceData["Left"])):
     ans=serv(newRequest)
     
     results.append(ans)
-    #print(f,results["data"][-1].outputFrames[0].nLeft,results["data"][-1].outputFrames[0].nRight)
     print("-----"+str(f)+"/"+str(len(sequenceData["Left"])))
-##determine outFile
+
 
 
 print(projectFolder.getFeaturePickle(args.loopID))
