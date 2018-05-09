@@ -1,0 +1,135 @@
+#!/usr/bin/env python
+import os
+import cv2
+import sys
+
+import time
+
+import rospy
+import argparse
+import pickle
+import rosbag
+
+from cv_bridge import CvBridge
+from front_end.srv import *
+from front_end.utils import *
+
+from front_end.visualize import *
+
+from front_end.stereo import Algorithms
+
+from front_end.features import detectorLookUpTable,descriptorLookUpTable,getDetector
+detTable=detectorLookUpTable()
+descTable=descriptorLookUpTable()
+from front_end.features import getDescriptor,getDescriptorIDs
+from dataset.utils import Directories,unpackBag
+from sensor_msgs.msg import Image,CameraInfo
+import matplotlib.pyplot as plt
+from front_end.analysis import getStereoFrameStatistics,getWindowStateStatistics
+cvb=CvBridge()
+
+
+
+
+
+parser =argparse.ArgumentParser()
+parser.add_argument("rootDir")
+parser.add_argument("loopID")
+parser.add_argument("detectorName")
+parser.add_argument("descriptorName")
+parser.add_argument("CurveID")
+parser.add_argument("--output_directory",default="/media/ryan/EXTRA/output")
+args,unknown=parser.parse_known_args()
+
+
+projectFolder=Directories(args.rootDir,args.output_directory) 
+
+pickleDir=projectFolder.getCurvePickle(args.loopID)
+
+print("loading Data from "+pickleDir)
+inputPickle=open(pickleDir,"rb")
+dataIn=pickle.load(inputPickle)
+inputPickle.close()
+print("Data Loaded")
+
+rospy.init_node('extract_stereo')
+
+Q=cvb.imgmsg_to_cv2(rospy.wait_for_message("/bumblebee_configuration/Q",Image))
+leftInfo=rospy.wait_for_message("/bumblebee_configuration/idealLeft/CameraInfo",CameraInfo)
+rightInfo=leftInfo=rospy.wait_for_message("/bumblebee_configuration/idealRight/CameraInfo",CameraInfo)
+
+Bag=unpackBag(projectFolder.getBagPath(args.loopID),5)
+
+print("Waiting for services")
+####establish service connections
+stereoServiceName="feature_node/getStereoFeatures"
+stereoMatchServiceName="stereo_node/stereoMatching"
+windowServiceName="window_node/windowMatching"
+
+rospy.wait_for_service(stereoServiceName)
+rospy.wait_for_service(stereoMatchServiceName)
+rospy.wait_for_service(windowServiceName)
+print("services Found")
+
+stereoService=rospy.ServiceProxy(stereoServiceName,getStereoFeatures)
+matchService=rospy.ServiceProxy(stereoMatchServiceName,stereoMatching)
+windowService=rospy.ServiceProxy(windowServiceName,windowMatching)
+
+windowRE=windowMatchingRequest()
+windowRE.reset=True
+windowService(windowRE)
+
+# Results={}
+# Results["LoopID"]=args.loopID
+# Results["CurveID"]=args.CurveID
+# Results["ImageStatistics"]=[]
+
+descriptorIds=getDescriptorIDs(args.descriptorName)
+for f in range(0,len(Bag["Left"])):
+    ###for each image, extract the output data, and save to Results
+    ###get KPS
+    # ImageResults={}
+    # ImageResults["FrameNumber"]=f
+    # ImageResults["AlgorithmStatistics"]=[]
+    # ImageResults["DetectorID"]=dataIn[args.detectorName][args.CurveID][f]
+    desID=descriptorIds[0]##just pick the first one for now
+
+
+    print(f,len(Bag["Left"]))
+    request=getStereoFeaturesRequest()
+    request.detID=dataIn[args.detectorName][args.CurveID][f]
+    request.descrID=desID
+    request.leftImg=Bag["Left"][f]
+    request.rightImg=Bag["Right"][f]
+    ans=stereoService(request)
+    #### get Stereo
+    stereoRe=stereoMatchingRequest()
+    stereoRe.frame=ans.latestFeatures
+    steAns=matchService(stereoRe)
+    print("received stereoMatching Results")
+    #print(getStereoFrameStatistics(ans.latestFeatures,steAns.out))
+    print("STARTING WINDOW")
+    windowRE=windowMatchingRequest()
+    windowRE.reset=False
+    windowRE.latestFrame=steAns.out
+    windowOut=windowService(windowRE)
+    if(len(windowOut.state.msgs)>1):
+        print(len(windowOut.state.msgs))
+        print(getWindowStateStatistics(windowOut.state,leftInfo,rightInfo,Q))
+    #l=drawStereoLandmarks(Bag["Left"][f],Bag["Right"][f],
+    #steAns)
+    #cv2.imshow("epi",l)
+    #cv2.waitKey(2000)
+    #print(getStereoFrameStatistics(ans.latestFeatures,steAns.out))
+    #ImageResults["AlgorithmStatistics"].append(getStereoFrameStatistics(ans.latestFeatures,steAns.out))
+    #Results["ImageStatistics"].append(ImageResults)
+
+
+#save to File 
+# outputName=projectFolder.getAlgorithmStatsPickle(args.loopID)
+# outFile=open(outputName,"w")
+# print("outFile",outputName)
+# pickle.dump(Results,outFile)
+# outFile.close()
+print("completed")
+ 

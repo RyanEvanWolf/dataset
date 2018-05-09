@@ -56,40 +56,53 @@ Bag=unpackBag(projectFolder.getBagPath(args.loopID),5)
 
 print("Waiting for services")
 ####establish service connections
-kpServiceName="feature_node/singleImageDetection"
 stereoServiceName="feature_node/getStereoFeatures"
 stereoMatchServiceName="stereo_node/stereoMatching"
-rospy.wait_for_service(kpServiceName)
+
 rospy.wait_for_service(stereoServiceName)
 rospy.wait_for_service(stereoMatchServiceName)
 print("services Found")
 
-kpService=rospy.ServiceProxy(kpServiceName,singleImageDetection)
 stereoService=rospy.ServiceProxy(stereoServiceName,getStereoFeatures)
 matchService=rospy.ServiceProxy(stereoMatchServiceName,stereoMatching)
-# print("completed")
+
+Results={}
+Results["LoopID"]=args.loopID
+Results["CurveID"]=args.CurveID
+Results["ImageStatistics"]=[]
+
 for f in range(0,len(Bag["Left"])):
     ###for each image, extract the output data, and save to Results
     ###get KPS
-    print(descTable.keys()[0],f)
-    request=getStereoFeaturesRequest()
-    request.detID=dataIn[args.detectorName][args.CurveID][f]
-    request.descrID=descTable.keys()[0]
-    request.leftImg=Bag["Left"][f]
-    request.rightImg=Bag["Right"][f]
-    ans=stereoService(request)
-    #### get Stereo
-    stereoRe=stereoMatchingRequest()
-    stereoRe.frame=ans.latestFeatures
-    print(len(ans.latestFeatures.leftFeatures))
-    steAns=matchService(stereoRe)
-    print("received stereoMatching Results")
-    #l=drawStereoLandmarks(Bag["Left"][f],Bag["Right"][f],
-    #steAns)
-    #cv2.imshow("epi",l)
-    #cv2.waitKey(2000)
-    print(getStereoFrameStatistics(ans.latestFeatures,steAns.out))
-
+    ImageResults={}
+    ImageResults["FrameNumber"]=f
+    ImageResults["AlgorithmStatistics"]=[]
+    ImageResults["DetectorID"]=dataIn[args.detectorName][args.CurveID][f]
+    descr=0
+    for descType in descTable.keys():
+        print(descr,len(descTable.keys()),f,len(Bag["Left"]))
+        descr+=1
+        descriptorResults={}
+        descriptorResults["DescriptorID"]=descType
+        print(descType)
+        request=getStereoFeaturesRequest()
+        request.detID=ImageResults["DetectorID"]
+        request.descrID=descType
+        request.leftImg=Bag["Left"][f]
+        request.rightImg=Bag["Right"][f]
+        ans=stereoService(request)
+        #### get Stereo
+        stereoRe=stereoMatchingRequest()
+        stereoRe.frame=ans.latestFeatures
+        steAns=matchService(stereoRe)
+        print("received stereoMatching Results")
+        #l=drawStereoLandmarks(Bag["Left"][f],Bag["Right"][f],
+        #steAns)
+        #cv2.imshow("epi",l)
+        #cv2.waitKey(2000)
+        print(getStereoFrameStatistics(ans.latestFeatures,steAns.out))
+        ImageResults["AlgorithmStatistics"].append(getStereoFrameStatistics(ans.latestFeatures,steAns.out))
+    Results["ImageStatistics"].append(ImageResults)
     # ##define the Requests
     # kpRequest=singleImageDetectionRequest()
     # kpRequest.detectorName=dataIn["name"]
@@ -119,10 +132,11 @@ for f in range(0,len(Bag["Left"])):
     # print("endReq")
     # print(f)
 
-# #     ##save to File 
-# #     # outFile=open(outputName,"w")
-# #     # print("outFile",outputName)
-# #     # pickle.dump(results,outFile)
-# #     # outFile.close()
-# #     print("completed")
+#save to File 
+outputName=projectFolder.getAlgorithmStatsPickle(args.loopID)
+outFile=open(outputName,"w")
+print("outFile",outputName)
+pickle.dump(Results,outFile)
+outFile.close()
+print("completed")
  

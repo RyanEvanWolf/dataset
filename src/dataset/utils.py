@@ -5,6 +5,7 @@ FEATURES_FOLDER="Features"
 
 UNSORTED_FEATURES_PICKLE="baseDetection.p"
 OPERATING_CURVES_PICKLE="OperatingCurves.p"
+ALGORITHM_STATISTICS="AlgorithmOneStats.p"
 
 def OperatingCurveIDs():
     Ids=["Maximum","0.9Maximum","0.8Maximum",
@@ -55,4 +56,5 @@ class Directories:
         return self.featDir+"/"+loopID
     def getFeaturePickle(self,loopID):
         return self.getFeaturePath(loopID)+"/"+UNSORTED_FEATURES_PICKLE
-
+    def getAlgorithmStatsPickle(self,loopID):
+        return self.getFeaturePath(loopID)+"/"+ALGORITHM_STATISTICS
