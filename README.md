@@ -26,7 +26,7 @@ wait 66 ms before displaying a new folder
   
   OR 
   
-  roslauncg dataset baseLaunch.xml publishTransform:= True
+  roslaunch dataset baseLaunch.xml publishTransform:= True
   
   
 
@@ -50,6 +50,12 @@ First create a rosbag of stereo images.
   roslaunch dataset CreateStereoBag.xml 
   rosplay 
   
+  
+  ---------------------
+  extract a dataset from the binary pack raw version it was saved in
+  -------------------
+  rosrun dataset unpackBumblebeeData /media/ryan/EXTRA/DATA3/01-01-1970--02-02-06.rawData
+
 
   
   
@@ -93,10 +99,17 @@ roslaunch dataset CreateStereoLoop.xml
 1) initilaize the front_end feature node for feature extraction
 rosrun front_end feature_node
 
+rosrun dataset extractLoopFeatures /home/ryan/DATA3 A_1 --max_images 50
+
 2)Begin extracting features from a rosbag that contains stereo rectified Images
 
-rosrun dataset extractLoopFeatures.py /home/ryan/DATA/Bags/stereoBag_A_1.bag /home/ryan/DATA/Features/_A_1/FAST/baseDetection.p
+rosrun dataset extractOperatingCurves /home/ryan/DATA3 A_1
+rosrun dataset extractOperatingCurves /home/ryan/DATA3 A_1 --output_directory pathToPickledOutputObjects
+-> to view outputs
+rosrun slam_analysis plotDetectionStatistics /home/ryan/DATA3 A_1 FAST
+
 
 3) generate stereo summary statistics 
 
 rosrun dataset extractStereo.py
+
