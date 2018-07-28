@@ -1,10 +1,11 @@
 <launch>
-  <arg name="root_dir" default="/home/ryan/DATA"/>
+  <arg name="root_dir" default="/home/ryan"/>
+  <arg name="dataset" default="DATA3"/>
   <arg name="default_bag_dir" default="Bags"/>
   <arg name="default_out_dir" default="Features"/>
-  <arg name="bag_dir" default="/home/ryan/DATA/Bags"/>
   <arg name="track_name" default="A"/>
   <arg name="loop_number" default="1"/>
-  <node name="feature_node" pkg="front_end" type="feature_node" output="screen"/>
-  <node name="extract_node" pkg="dataset" type="extractLoopFeatures" output="screen" args="$(arg root_dir)/$(arg default_bag_dir)/stereoBag_$(arg track_name)_$(arg loop_number).bag hd FAST 2"/>
+  <arg name="detectorName" default="FAST"/>
+  <arg name="maxImages" default="-1"/>
+  <node name="extract_node_$(arg detectorName)" pkg="dataset" type="extractLoopFeatures" output="screen" args="$(arg root_dir) $(arg track_name)_$(arg loop_number) $(arg detectorName) --max_images $(arg maxImages)"/>
 </launch> 

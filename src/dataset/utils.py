@@ -1,11 +1,14 @@
 import os
 import rosbag
+import yaml
 BAG_FOLDER="Bags"
 FEATURES_FOLDER="Features"
 
 UNSORTED_FEATURES_PICKLE="baseDetection.p"
 OPERATING_CURVES_PICKLE="OperatingCurves.p"
 ALGORITHM_STATISTICS="AlgorithmOneStats.p"
+
+detectorTableDirectory="/media/ryan/EXTRA/output/detectorLookupTable.yaml"
 
 def OperatingCurveIDs():
     Ids=["Maximum","0.9Maximum","0.8Maximum",
@@ -17,6 +20,12 @@ def OperatingCurveIDs():
 def getBagID(bagFile):
     outID=bagFile[bagFile.find("_")+1:bagFile.rfind(".bag")]
     return outID
+
+def getDetectorTable():
+    detTableSource=open(detectorTableDirectory, 'r') 
+    detTable=yaml.load(detTableSource)
+    detTableSource.close()
+    return detTable
 
 def unpackBag(bagFile,maxImages=-1,verbose=False):
     Output={}
@@ -38,23 +47,39 @@ def unpackBag(bagFile,maxImages=-1,verbose=False):
             break
     inputBag.close()  
     return Output
+def getDefaultDirectories():
+    Direct={}
+    Direct["Root"]="/home/ryan"
+    Direct["DataSet"]="DATA3"
+    Direct["BagFolder"]="Bags"
+    Direct["RootOut"]="/media/ryan/EXTRA/output"
+    Direct["FeaturesFolder"]="Features"
+    Direct["SimulationFolder"]="Simulation"
+    Direct["CurvePickle"]="operatingCurves.p"
+    return Direct
+
 class Directories:
-    def __init__(self,baseDirectory,outputDirectory=""):
-        self.baseDirectory =baseDirectory
-        self.bagDir=self.baseDirectory+"/"+BAG_FOLDER
-        if(outputDirectory!=""):
-            self.featDir=outputDirectory+"/"+FEATURES_FOLDER
-        else:
-            self.featDir=self.baseDirectory+ "/"+ FEATURES_FOLDER
+    def __init__(self,foldStruct=getDefaultDirectories()):
+        self.Direct=foldStruct
+        # self.baseDirectory =baseDirectory
+        # self.bagDir=self.baseDirectory+"/"+BAG_FOLDER
+        # if(outputDirectory!=""):
+        #     self.featDir=outputDirectory+"/"+FEATURES_FOLDER
+        # else:
+        #     self.featDir=self.baseDirectory+ "/"+ FEATURES_FOLDER
+    def getBagPath(self):
+         return (self.Direct["Root"]+"/"+self.Direct["DataSet"]
+                +"/"+self.Direct["BagFolder"])
     def getBags(self):
-        return os.listdir(self.bagDir)
-    def getBagPath(self,ID):
-        return self.bagDir+"/stereo_"+ID+".bag"
+        return os.listdir(self.getBagPath())
+    def getBagName(self,ID):
+        return self.getBagPath()+"/stereo_"+ID+".bag"
     def getCurvePickle(self,loopID):
         return self.getFeaturePath(loopID)+"/"+OPERATING_CURVES_PICKLE
-    def getFeaturePath(self,loopID):
-        return self.featDir+"/"+loopID
-    def getFeaturePickle(self,loopID):
-        return self.getFeaturePath(loopID)+"/"+UNSORTED_FEATURES_PICKLE
+    def getFeaturePath(self,loopID,detectorType):
+        outPath=(self.Direct["RootOut"]+"/"+self.Direct["FeaturesFolder"]
+                +"/"+self.Direct["DataSet"]+"/"+loopID+
+                "/"+detectorType)
+        return outPath
     def getAlgorithmStatsPickle(self,loopID):
         return self.getFeaturePath(loopID)+"/"+ALGORITHM_STATISTICS

@@ -3,13 +3,14 @@
 import rospy 
 from front_end.srv import singleImageDetection,singleImageDetectionRequest
 from front_end.features import detectorLookUpTable
-from dataset.utils import Directories,getBagID,unpackBag
+from dataset.utils import *
 from cv_bridge import CvBridge
 import os
 import cv2
 import sys
 from front_end.features import *
 import time
+import datetime
 import pickle
 
 import argparse
@@ -21,13 +22,19 @@ cvb=CvBridge()
 parser =argparse.ArgumentParser()
 parser.add_argument("rootDir")
 parser.add_argument("loopID")
+parser.add_argument("detectorType")
 parser.add_argument("--max_images",default=-1,type=int)
 parser.add_argument("--output_directory",default="/media/ryan/EXTRA/output")
 args,unknown=parser.parse_known_args()
 
-projectFolder=Directories(args.rootDir,args.output_directory) 
-sequenceData=unpackBag(projectFolder.getBagPath(args.loopID),args.max_images)
-table=detectorLookUpTable()
+currentDirectories=getDefaultDirectories()
+currentDirectories["Root"]=args.rootDir
+
+projectFolder=Directories(currentDirectories) 
+
+sequenceData=unpackBag(projectFolder.getBagName(args.loopID),args.max_images)
+
+table=getDetectorTable()
 #####
 #pick detector based on input 
 
@@ -35,33 +42,41 @@ table=detectorLookUpTable()
 newRequest=singleImageDetectionRequest()
 ###get detector Settings
 newRequest.returnKP=False
-newRequest.detID=table.keys()
+for i in sorted(table.keys()):
+    if(table[i]["Name"]==args.detectorType):
+        newRequest.detID.append(i)
 
 serviceName="feature_node/singleImageDetection"
-rospy.init_node('extract_loop_features')
+rospy.init_node("extract_loop_features_"+args.detectorType)
 
 rospy.wait_for_service(serviceName)
 serv=rospy.ServiceProxy(serviceName,singleImageDetection)
 results=[]
 
+count=0
+
+avgTime=0.0
+
 for f in range(0,len(sequenceData["Left"])):
+    startTime=time.time()
+    print("sent @ "+str(startTime))
     newRequest.leftImg=sequenceData["Left"][f]
     newRequest.rightImg=sequenceData["Right"][f]
     ans=serv(newRequest)
-    
-    results.append(ans)
+    totalTime=time.time()-startTime
+    avgTime+=totalTime
+    count+=1
+    fileName=projectFolder.getFeaturePath(args.loopID,args.detectorType)+"/"+str(count).zfill(5)+".p"
+    if(not os.path.exists(os.path.dirname(fileName))):
+        os.makedirs(os.path.dirname(fileName))
     print("-----"+str(f)+"/"+str(len(sequenceData["Left"])))
+    estimatedSecondsLeft=(len(sequenceData["Left"])-count)*(avgTime/count)
+    print("avgTime",(avgTime/count))
+    print("estimatedTimeLeft=",str(datetime.timedelta(seconds=estimatedSecondsLeft)))
+    outFile=open(fileName,"wb")
+    print("outFile",fileName)
+    pickle.dump(ans,outFile)
+    outFile.close()
 
 
-
-print(projectFolder.getFeaturePickle(args.loopID))
-
-
-fileName=projectFolder.getFeaturePickle(args.loopID)
-if(not os.path.exists(os.path.dirname(fileName))):
-    os.makedirs(os.path.dirname(fileName))
-outFile=open(fileName,"wb")
-print("outFile",fileName)
-pickle.dump(results,outFile)
-outFile.close()
 print("completed")

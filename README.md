@@ -60,7 +60,34 @@ First create a rosbag of stereo images.
   
   
 ----------------
+first run
+
+roslaunch dataset baseFeatures.xml
+
+then to execute individual detector extractions
+
 rosrun dataset extractLoopFeatures /home/ryan/DATA3 A_1 --max_images 10
+
+OR 
+args
+dataset:= DATA3
+  -> the folder name where to search relative to root_dir for the dataset
+
+default_bag_dir := Bags
+  -> search for stereo bags @ root_dir/dataset/default_bag_dir
+default_out_dir := Features
+  -> save all output data @ /media/ryan/EXTRA/output/default_out_dir
+detectorName := FAST
+  -> detector Name (SURF,FAST,ORB,AKAZE,BRISK)
+loopNumber := 1
+maxImages := 15
+root_dir := /home/ryan
+  -> where to find the dataset
+track_name := A
+  ->track sequence within a single video 
+
+roslaunch dataset extractSingleLoopFeatures.xml
+
 -----------------
   
   

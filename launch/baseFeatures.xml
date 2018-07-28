@@ -1,11 +1,7 @@
 <launch>
   <arg name="BumblebeeConfigurationFolder" default="/home/ryan/Calibration"/>
-  <arg name="datasetName" default="DATA3"/>
-  <arg name="trackName" default="A"/>
-  <arg name="datasetInputFolder" default="/media/ryan/EXTRA/$(arg datasetName)/$(arg trackName)"/>
-  <arg name="outputFolder" default="/media/ryan/EXTRA/$(arg datasetName)/$(arg trackName)"/>
   <arg name="publishTransform" default="False"/>
-  <node name="dataset" pkg="dataset" type="bumbleDataSet.py" output="screen" args="$(arg datasetInputFolder)" />
+  <node name="feature_node" pkg="front_end" type="feature_node" output="screen"/>
   <node name="bumblebee_configuration" type="bumblebee_configuration.py" output="screen" pkg="bumblebee" args="$(arg BumblebeeConfigurationFolder) bumblebee_configuration $(arg publishTransform)"/>
   <node name="bumblebee" type="bumblebee_node.py" output="screen" pkg="bumblebee" args="bumblebee_configuration"/>
- </launch>
+</launch> 
