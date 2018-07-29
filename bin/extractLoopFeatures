@@ -71,7 +71,7 @@ for f in range(0,len(sequenceData["Left"])):
         os.makedirs(os.path.dirname(fileName))
     print("-----"+str(f)+"/"+str(len(sequenceData["Left"])))
     estimatedSecondsLeft=(len(sequenceData["Left"])-count)*(avgTime/count)
-    print("avgTime",(avgTime/count))
+    print("avgTime",str(datetime.timedelta(seconds=(avgTime/count))))
     print("estimatedTimeLeft=",str(datetime.timedelta(seconds=estimatedSecondsLeft)))
     outFile=open(fileName,"wb")
     print("outFile",fileName)

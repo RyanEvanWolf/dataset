@@ -11,11 +11,14 @@ ALGORITHM_STATISTICS="AlgorithmOneStats.p"
 detectorTableDirectory="/media/ryan/EXTRA/output/detectorLookupTable.yaml"
 
 def OperatingCurveIDs():
-    Ids=["Maximum","0.9Maximum","0.8Maximum",
-        "0.7Maximum","0.6Maximum","+Deviation",
+    Ids=["Maximum","0.9Maximum",
+        "0.8Maximum","+Deviation",
         "Mean","-Deviation","Minimum"]
     return Ids
 
+def OperatingCurveColours():
+    col=[(1,0,0,1),(1,0,0,0.6),(1,0,0.2,0.4),(0,0,1,1),(0,0.2,1,1),(0,0,1,1),(0,0,0,1)]
+    return col
 
 def getBagID(bagFile):
     outID=bagFile[bagFile.find("_")+1:bagFile.rfind(".bag")]
@@ -74,8 +77,8 @@ class Directories:
         return os.listdir(self.getBagPath())
     def getBagName(self,ID):
         return self.getBagPath()+"/stereo_"+ID+".bag"
-    def getCurvePickle(self,loopID):
-        return self.getFeaturePath(loopID)+"/"+OPERATING_CURVES_PICKLE
+    def getCurvePickle(self,loopID,detectorType):
+        return self.getFeaturePath(loopID,detectorType)+".p"
     def getFeaturePath(self,loopID,detectorType):
         outPath=(self.Direct["RootOut"]+"/"+self.Direct["FeaturesFolder"]
                 +"/"+self.Direct["DataSet"]+"/"+loopID+

@@ -4,12 +4,12 @@ import rospy
 import cv2
 import time
 
-from dataset.utils import Directories
+from dataset.utils import *
 from front_end.utils import *
 from front_end.srv import *
 from front_end.msg import frameDetection,ProcTime,kPoint
 
-from front_end.analysis import featureDatabase
+from front_end.analysis import getOperatingCurves
 #from front_end.features import plotFeatures,getBestSettings,getFeatureSummary
 
 from cv_bridge import CvBridge
@@ -18,8 +18,6 @@ import matplotlib.style as sty
 import pickle
 import argparse
 
-###
-from front_end.srv import getStereoFeatures,getStereoFeaturesRequest,getStereoFeaturesResponse
 rospy.init_node('curves')
 ##
 
@@ -28,23 +26,51 @@ cvb=CvBridge()
 
 parser =argparse.ArgumentParser()
 parser.add_argument("rootDir")
+parser.add_argument("dataset")
 parser.add_argument("loopID")
+parser.add_argument("detectorType")
 parser.add_argument("--output_directory",default="/media/ryan/EXTRA/output")
 args,unknown=parser.parse_known_args()
 
-projectFolder=Directories(args.rootDir,args.output_directory) 
-pickleDir=projectFolder.getFeaturePickle(args.loopID)
-print("Loading from "+pickleDir)
-features=featureDatabase(pickleDir)
-print("completed Loading")
-sett,OperatingCurves=features.getOperatingCurves("FAST")
-print(OperatingCurves["Maximum"])
-print("complete")
+currentDirectories=getDefaultDirectories()
+currentDirectories["Root"]=args.rootDir
+currentDirectories["Dataset"]=args.dataset
+
+projectFolder=Directories(currentDirectories) 
+
+inputFolder=projectFolder.getFeaturePath(args.loopID,args.detectorType)
+###
+##detIds, nFeatures actually found
+settings,nFeatures,times=getOperatingCurves(inputFolder)
+
+fileDict={}
+fileDict["Settings"]=settings
+fileDict["nFeatures"]=nFeatures
+fileDict["times"]=times
+
+
+###save the results somewhere
+fullOut=inputFolder[:inputFolder.rfind("/")+1]+args.detectorType+".p"
+print("saving to ",fullOut)
+
+f= open(fullOut,"w")
+
+pickle.dump(fileDict,f)
+
+f.close()
+
+# pickleDir=projectFolder.getFeaturePickle(args.loopID)
+# print("Loading from "+pickleDir)
+# features=featureDatabase(pickleDir)
+# print("completed Loading")
+# sett,OperatingCurves=features.getOperatingCurves("FAST")
+# print(OperatingCurves["Maximum"])
+# print("complete")
 
 
 
-outputSettings={}
-outputSettings["FAST"]=sett
+# outputSettings={}
+# outputSettings["FAST"]=sett
 
 
 # #####
@@ -92,11 +118,12 @@ outputSettings["FAST"]=sett
 #     c.append(len(ans.latestFeatures.leftFeatures))
 
 # plt.plot(c)
-sett,OperatingCurves=features.getOperatingCurves("SURF")
+# sett,OperatingCurves=features.getOperatingCurves("SURF")
 
-outputSettings["SURF"]=sett
+# outputSettings["SURF"]=sett
 
 
-outputFileName=projectFolder.getCurvePickle(args.loopID)
-print(outputFileName)
-pickle.dump(outputSettings,open(outputFileName,"w"))
+# outputFileName=projectFolder.getCurvePickle(args.loopID)
+# print(outputFileName)
+# pickle.dump(outputSettings,open(outputFileName,"w"))
+print("complete")

@@ -7,5 +7,5 @@
   <arg name="loop_number" default="1"/>
   <arg name="detectorName" default="FAST"/>
   <arg name="maxImages" default="-1"/>
-  <node name="extract_node_$(arg detectorName)" pkg="dataset" type="extractLoopFeatures" output="screen" args="$(arg root_dir) $(arg track_name)_$(arg loop_number) $(arg detectorName) --max_images $(arg maxImages)"/>
+  <node name="extract_node_$(arg detectorName)_$(arg loop_number)" pkg="dataset" type="extractLoopFeatures" output="screen" args="$(arg root_dir) $(arg track_name)_$(arg loop_number) $(arg detectorName) --max_images $(arg maxImages)"/>
 </launch> 
