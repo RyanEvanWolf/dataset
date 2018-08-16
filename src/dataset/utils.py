@@ -24,7 +24,7 @@ def getBagID(bagFile):
     outID=bagFile[bagFile.find("_")+1:bagFile.rfind(".bag")]
     return outID
 
-def getDetectorTable():
+def getDetectorTable(detectorTableDirectory="/media/ryan/EXTRA/output/detectorLookupTable.yaml"):
     detTableSource=open(detectorTableDirectory, 'r') 
     detTable=yaml.load(detTableSource)
     detTableSource.close()

@@ -1,0 +1,88 @@
+#!/usr/bin/env python
+#####ros related imports
+import rospy 
+from front_end.srv import singleImageDetection,singleImageDetectionRequest
+from front_end.features import detectorLookUpTable
+from dataset.utils import *
+from cv_bridge import CvBridge
+import os
+import cv2
+import sys
+from front_end.features import *
+import time
+import datetime
+import pickle
+
+import argparse
+
+import rosbag
+
+cvb=CvBridge()
+
+parser =argparse.ArgumentParser()
+parser.add_argument("rootDir")
+parser.add_argument("loopID")
+parser.add_argument("detectorType")
+parser.add_argument("--max_images",default=-1,type=int)
+args,unknown=parser.parse_known_args()
+
+detectorTableDirectory="/home/ubuntu/detectorLookupTablePY.yaml"
+currentDirectories=getDefaultDirectories()
+currentDirectories["Root"]=args.rootDir
+
+projectFolder=Directories(currentDirectories) 
+print("Loading Bag sequence")
+sequenceData=unpackBag(projectFolder.getBagName(args.loopID),args.max_images)
+print("Loaded: Loading detector Table")
+table=getDetectorTable(detectorTableDirectory)
+print("Loaded")
+#####
+#pick detector based on input 
+
+
+newRequest=singleImageDetectionRequest()
+###get detector Settings
+newRequest.returnKP=False
+for i in sorted(table.keys()):
+    if(table[i]["Name"]==args.detectorType):
+        newRequest.detID.append(i)
+
+serviceName="feature_node_cpp/singleImageDetection"
+rospy.init_node("extract_loop_features_"+args.detectorType)
+
+rospy.wait_for_service(serviceName)
+serv=rospy.ServiceProxy(serviceName,singleImageDetection)
+results=[]
+
+count=0
+
+avgTime=0.0
+print("starting")
+
+for f in range(0,len(sequenceData["Left"])):
+    startTime=time.time()
+    print("sent @ "+str(startTime))
+    newRequest.leftImg=sequenceData["Left"][f]
+    newRequest.rightImg=sequenceData["Right"][f]
+    ans=serv(newRequest)
+    totalTime=time.time()-startTime
+    avgTime+=totalTime
+    count+=1
+    #fileName=projectFolder.getFeaturePath(args.loopID,args.detectorType)+"/"+str(count).zfill(5)+".p"
+    for abcd in range(0,len(ans.outputFrames)):
+        print(ans.outputFrames[abcd].processingTime[0])
+        print(ans.outputFrames[abcd].processingTime[1])
+        print(len(ans.outputFrames[abcd].processingTime))
+    #print("**8")
+    #if(not os.path.exists(os.path.dirname(fileName))):
+    #   os.makedirs(os.path.dirname(fileName))
+    print("-----"+str(f)+"/"+str(len(sequenceData["Left"])))
+    estimatedSecondsLeft=(len(sequenceData["Left"])-count)*(avgTime/count)
+    print("avgTime",str(datetime.timedelta(seconds=(avgTime/count))))
+    print("estimatedTimeLeft=",str(datetime.timedelta(seconds=estimatedSecondsLeft)))
+    '''    #outFile=open(fileName,"wb") print("outFile",fileName)
+    pickle.dump(ans,outFile)
+    outFile.close()
+    '''
+
+print("completed")
