@@ -30,19 +30,24 @@ parser.add_argument("dataset")
 parser.add_argument("loopID")
 parser.add_argument("detectorType")
 parser.add_argument("--output_directory",default="/media/ryan/EXTRA/output")
+parser.add_argument("--detector_table_dir",default="",help="full path to the detector descriptor yaml lookup table")
 args,unknown=parser.parse_known_args()
 
 currentDirectories=getDefaultDirectories()
 currentDirectories["Root"]=args.rootDir
 currentDirectories["Dataset"]=args.dataset
+currentDirectories["RootOut"]=args.output_directory
 
 projectFolder=Directories(currentDirectories) 
-
+print(projectFolder.Direct)
 inputFolder=projectFolder.getFeaturePath(args.loopID,args.detectorType)
+print(inputFolder)
 ###
 ##detIds, nFeatures actually found
-settings,nFeatures,times=getOperatingCurves(inputFolder)
-
+if(args.detector_table_dir==""):
+    settings,nFeatures,times=getOperatingCurves(inputFolder)
+else:
+    settings,nFeatures,times=getOperatingCurves(inputFolder,args.detector_table_dir)
 fileDict={}
 fileDict["Settings"]=settings
 fileDict["nFeatures"]=nFeatures
@@ -99,6 +104,7 @@ f.close()
 # c=[]
 
 # for f in range(0,len(Bag["Left"])):
+    
 #     ###for each image, extract the output data, and save to Results
 #     ###get KPS
 #     # newRequest.leftImg=Bag["Left"][f]
