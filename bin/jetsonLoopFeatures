@@ -23,29 +23,52 @@ parser =argparse.ArgumentParser()
 parser.add_argument("rootDir")
 parser.add_argument("loopID")
 parser.add_argument("detectorType")
+parser.add_argument("operatingCurve",help=str(OperatingCurveIDs()))
 parser.add_argument("--max_images",default=-1,type=int)
+parser.add_argument("--detector_table_dir",default="",help="full path to the detector descriptor yaml lookup table")
+parser.add_argument("--output_directory",default="/media/ryan/EXTRA/output")
 args,unknown=parser.parse_known_args()
 
-detectorTableDirectory="/home/ubuntu/detectorLookupTablePY.yaml"
+if(not(args.operatingCurve in OperatingCurveIDs())):
+    print("Curve ID not Found, terminating")
+
+    sys.exit()
+else:
+    print("extracting curve:" +args.operatingCurve)
+
+print("Loaded: Loading detector Table")
+if(args.detector_table_dir==""):
+    table=getDetectorTable()
+else:
+    table=getDetectorTable(args.detector_table_dir)
+
+print("Loaded")
 currentDirectories=getDefaultDirectories()
 currentDirectories["Root"]=args.rootDir
+currentDirectories["RootOut"]=args.output_directory
+
 
 projectFolder=Directories(currentDirectories) 
 print("Loading Bag sequence")
 sequenceData=unpackBag(projectFolder.getBagName(args.loopID),args.max_images)
-print("Loaded: Loading detector Table")
-table=getDetectorTable(detectorTableDirectory)
-print("Loaded")
-#####
 #pick detector based on input 
 
 
+pickleDir=projectFolder.getCurvePickle(args.loopID,args.detectorType)
+
+
+f=open(pickleDir,"r")
+inData=pickle.load(f)
+f.close()   
+
+print(inData.keys())
+print(inData["Settings"].keys())
+
+print(len(sequenceData["Left"]),len(inData["Settings"][args.operatingCurve]))
 newRequest=singleImageDetectionRequest()
-###get detector Settings
+####get detector Settings
 newRequest.returnKP=False
-for i in sorted(table.keys()):
-    if(table[i]["Name"]==args.detectorType):
-        newRequest.detID.append(i)
+
 
 serviceName="feature_node_cpp/singleImageDetection"
 rospy.init_node("extract_loop_features_"+args.detectorType)
@@ -64,25 +87,27 @@ for f in range(0,len(sequenceData["Left"])):
     print("sent @ "+str(startTime))
     newRequest.leftImg=sequenceData["Left"][f]
     newRequest.rightImg=sequenceData["Right"][f]
+    newRequest.detID=[]
+    for i in OperatingCurveIDs():
+        newRequest.detID.append(inData["Settings"][i][f])
     ans=serv(newRequest)
     totalTime=time.time()-startTime
     avgTime+=totalTime
     count+=1
-    #fileName=projectFolder.getFeaturePath(args.loopID,args.detectorType)+"/"+str(count).zfill(5)+".p"
-    for abcd in range(0,len(ans.outputFrames)):
-        print(ans.outputFrames[abcd].processingTime[0])
-        print(ans.outputFrames[abcd].processingTime[1])
-        print(len(ans.outputFrames[abcd].processingTime))
-    #print("**8")
-    #if(not os.path.exists(os.path.dirname(fileName))):
-    #   os.makedirs(os.path.dirname(fileName))
+    print(ans.outputFrames[0].processingTime[0])
+    print(ans.outputFrames[0].processingTime[1])
+    print(len(ans.outputFrames[0].processingTime))
+    print(ans.outputFrames[0].nLeft)     
     print("-----"+str(f)+"/"+str(len(sequenceData["Left"])))
     estimatedSecondsLeft=(len(sequenceData["Left"])-count)*(avgTime/count)
     print("avgTime",str(datetime.timedelta(seconds=(avgTime/count))))
     print("estimatedTimeLeft=",str(datetime.timedelta(seconds=estimatedSecondsLeft)))
-    '''    #outFile=open(fileName,"wb") print("outFile",fileName)
-    pickle.dump(ans,outFile)
-    outFile.close()
-    '''
+    results.append(ans)
+fileName=projectFolder.getFeaturePath(args.loopID,args.detectorType)+"_jetsonCurves.p"
+outFile=open(fileName,"wb")
+print("outFile",fileName)
+pickle.dump(results,outFile)
+outFile.close()
+
 
 print("completed")
