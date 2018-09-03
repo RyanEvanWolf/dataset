@@ -67,12 +67,6 @@ for f in range(0,len(sequenceData["Left"])):
     avgTime+=totalTime
     count+=1
     fileName=projectFolder.getFeaturePath(args.loopID,args.detectorType)+"/"+str(count).zfill(5)+".p"
-    print(type(ans))
-    for abcd in range(0,len(ans.outputFrames)):
-        print(ans.outputFrames[abcd].processingTime[0])
-        print(ans.outputFrames[abcd].processingTime[1])
-        print(len(ans.outputFrames[abcd].processingTime))
-    print("**8")
     if(not os.path.exists(os.path.dirname(fileName))):
         os.makedirs(os.path.dirname(fileName))
     print("-----"+str(f)+"/"+str(len(sequenceData["Left"])))
