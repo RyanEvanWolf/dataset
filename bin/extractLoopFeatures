@@ -33,8 +33,10 @@ currentDirectories["Root"]=args.rootDir
 projectFolder=Directories(currentDirectories) 
 
 sequenceData=unpackBag(projectFolder.getBagName(args.loopID),args.max_images)
-
-table=getDetectorTable()
+if(args.detector_table_dir==""):
+    table=getDetectorTable()
+else:
+    table=getDetectorTable(args.detector_table_dir)
 #####
 #pick detector based on input 
 

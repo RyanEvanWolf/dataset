@@ -1,0 +1,167 @@
+#!/usr/bin/env python
+#####ros related imports
+import rospy 
+from front_end.srv import singleImageDetection,singleImageDetectionRequest
+from front_end.features import detectorLookUpTable
+from dataset.utils import *
+from cv_bridge import CvBridge
+import os
+import cv2
+import sys
+from front_end.features import *
+import time
+import datetime
+import pickle
+from statistics import mean,stdev
+import argparse
+
+import rosbag
+
+cvb=CvBridge()
+
+parser =argparse.ArgumentParser()
+parser.add_argument("loopID")
+parser.add_argument("detectorType")
+parser.add_argument("--max_images",default=-1,type=int)
+parser.add_argument("--detector_table_dir",default="",help="full path to the detector descriptor yaml lookup table if it is not in the default output location")
+parser.add_argument("--rootDir",default="/home/ryan",help="The root directory of the ros Bags such that rootDir/DATAx/Bags is locatable & rootDir/Calibration")
+parser.add_argument("--output_directory",default="/media/ryan/EXTRA/output")
+args,unknown=parser.parse_known_args()
+
+currentDirectories=getDefaultDirectories()
+currentDirectories["Root"]=args.rootDir
+currentDirectories["RootOut"]=args.output_directory
+
+projectFolder=Directories(currentDirectories) 
+
+print("Loading Dataset sequence",args.loopID)
+sequenceData=unpackBag(projectFolder.getBagName(args.loopID),args.max_images)
+print("Loaded")
+print("Getting Detector lookup Table")
+table=getDetectorTable()
+print("Loaded")
+
+laptopRequest=singleImageDetectionRequest()
+###get detector Settings
+laptopRequest.returnKP=False
+for i in sorted(table.keys()):
+    if(table[i]["Name"]==args.detectorType):
+        laptopRequest.detID.append(i)
+
+
+laptopServiceName="feature_node/singleImageDetection"
+jetsonServiceName="feature_node_cpp/singleImageDetection"
+rospy.init_node("extract_loop_features_"+args.detectorType)
+
+print("waiting for services")
+rospy.wait_for_service(laptopServiceName)
+rospy.wait_for_service(jetsonServiceName)
+print("Found Services")
+lserv=rospy.ServiceProxy(laptopServiceName,singleImageDetection)
+jserv=rospy.ServiceProxy(jetsonServiceName,singleImageDetection)
+
+
+###
+##setup the output dictionary structure
+######
+
+#####'
+###dataType
+###     ->OperatingCurveName
+###         ->List of DataPoints
+###     ->OperatingCurveName2
+###         ->List of DataPoints
+###     ...
+
+
+
+Extractcount=0
+fileCount=0
+avgTime=0.0
+
+##create the output directory if it does not exist
+finalOutFolder=projectFolder.getFeaturePath(args.loopID,args.detectorType)  #+"/"+str(count).zfill(5)+".p"
+if(not os.path.exists(finalOutFolder)):
+    os.makedirs(finalOutFolder)
+#
+
+AlreadyCompleted=os.listdir(finalOutFolder)
+for f in range(0,len(sequenceData["Left"])):
+    fileCount+=1
+    filename=str(fileCount).zfill(5)+".p"
+    if(filename in AlreadyCompleted):
+        print("Completed :"+filename+"   - Skipping")
+    else:
+        results={}
+        results["Settings"]={}
+        results["nFeatures"]={}
+        results["times"]={}
+        results["jetsonFeatures"]={}
+        results["jetsonTimes"]={}
+
+        print(filename)
+        startTime=time.time()
+        print("sent @ "+str(startTime))
+        ##get all the possible combinations available
+        laptopRequest.leftImg=sequenceData["Left"][f]
+        laptopRequest.rightImg=sequenceData["Right"][f]
+
+        jetsonRequest=singleImageDetectionRequest()
+        jetsonRequest.returnKP=False
+        jetsonRequest.leftImg=sequenceData["Left"][f]
+        jetsonRequest.rightImg=sequenceData["Right"][f]
+
+
+        ans=lserv(laptopRequest)
+        leftFeaturesNList=[]
+        processingTime=[]
+        ###from the answer, extract all the operating Curve information
+        ####get a list of left features detcted and the times for each for the image
+        for singleDetectionResult in ans.outputFrames:
+            leftFeaturesNList.append(singleDetectionResult.nLeft)
+            processingTime.append(singleDetectionResult.processingTime[0].seconds*1000)#convert to milliSeconds
+        ###
+        ###determine the statistics of the features detected
+        ### and add them to a list with a label
+        MaxInFrame=np.amax(leftFeaturesNList)
+        MinInFrame=np.amin(leftFeaturesNList)
+        MeanInFrame=mean(leftFeaturesNList)
+        dev=stdev(leftFeaturesNList)
+        dev_mean=MeanInFrame+dev
+        IdealPerformanceTotals=[("Maximum",MaxInFrame),
+                        ("0.9Maximum",0.9*MaxInFrame),
+                        ("0.8Maximum",0.8*MaxInFrame),
+                        ("+Deviation",MeanInFrame+dev),
+                        ("Mean",MeanInFrame),
+                        ("-Deviation",np.clip(MeanInFrame-dev,0,MaxInFrame)),
+                        ("Minimum",MinInFrame)]
+        for i in IdealPerformanceTotals:
+            closestIndex=np.abs(np.array(leftFeaturesNList)-i[1]).argmin()
+            cName=i[0]
+            results["Settings"][cName]=ans.outputFrames[closestIndex].detID
+            results["nFeatures"][cName]=leftFeaturesNList[closestIndex]
+            results["times"][cName]=processingTime[closestIndex]
+            #####get the jetson result
+            jetsonRequest.detID=[results["Settings"][cName]]
+            jetAns=jserv(jetsonRequest)
+            results["jetsonFeatures"][cName]=jetAns.outputFrames[0].nLeft
+            results["jetsonTimes"][cName]=jetAns.outputFrames[0].processingTime[0].seconds*1000
+            print(cName)
+            print(results["nFeatures"][cName],results["times"][cName])
+            print(results["jetsonFeatures"][cName],results["jetsonTimes"][cName])
+
+        
+        totalTime=time.time()-startTime
+        avgTime+=totalTime
+        Extractcount+=1
+        estimatedSecondsLeft=(len(sequenceData["Left"])-fileCount)*(avgTime/Extractcount)
+        print("-----"+str(f)+"/"+str(len(sequenceData["Left"])))
+        print("avgTime",str(datetime.timedelta(seconds=(avgTime/Extractcount))))
+        print("estimatedTimeLeft=",str(datetime.timedelta(seconds=estimatedSecondsLeft)))
+        print("---------------------------------------------------------------------------")
+        outFile=open(finalOutFolder+"/"+filename,"wb")
+        pickle.dump(results,outFile)
+        outFile.close()
+
+
+print("completed")
