@@ -23,20 +23,20 @@ parser =argparse.ArgumentParser()
 parser.add_argument("rootDir")
 parser.add_argument("loopID")
 parser.add_argument("detectorType")
-parser.add_argument("operatingCurve",help=str(OperatingCurveIDs()))
+#parser.add_argument("operatingCurve",help=str(OperatingCurveIDs()))
 parser.add_argument("--max_images",default=-1,type=int)
 parser.add_argument("--detector_table_dir",default="",help="full path to the detector descriptor yaml lookup table")
 parser.add_argument("--output_directory",default="/media/ryan/EXTRA/output")
 args,unknown=parser.parse_known_args()
 
-if(not(args.operatingCurve in OperatingCurveIDs())):
-    print("Curve ID not Found, terminating")
+#if(not(args.operatingCurve in OperatingCurveIDs())):
+    #print("Curve ID not Found, terminating")
 
-    sys.exit()
-else:
-    print("extracting curve:" +args.operatingCurve)
+    #sys.exit()
+#else:
+    #print("extracting curve:" +args.operatingCurve)
 
-print("Loaded: Loading detector Table")
+print("Loading detector Table")
 if(args.detector_table_dir==""):
     table=getDetectorTable()
 else:
@@ -64,7 +64,7 @@ f.close()
 print(inData.keys())
 print(inData["Settings"].keys())
 
-print(len(sequenceData["Left"]),len(inData["Settings"][args.operatingCurve]))
+#print(len(sequenceData["Left"]),len(inData["Settings"][args.operatingCurve]))
 newRequest=singleImageDetectionRequest()
 ####get detector Settings
 newRequest.returnKP=False
@@ -72,7 +72,7 @@ newRequest.returnKP=False
 
 serviceName="feature_node_cpp/singleImageDetection"
 rospy.init_node("extract_loop_features_"+args.detectorType)
-
+print("waiting for Service : "+serviceName)
 rospy.wait_for_service(serviceName)
 serv=rospy.ServiceProxy(serviceName,singleImageDetection)
 results=[]
@@ -103,10 +103,38 @@ for f in range(0,len(sequenceData["Left"])):
     print("avgTime",str(datetime.timedelta(seconds=(avgTime/count))))
     print("estimatedTimeLeft=",str(datetime.timedelta(seconds=estimatedSecondsLeft)))
     results.append(ans)
+
+print("extraction completed : saving to Disk")
+###
+##re organize the results into dictionary like objects
+####
+
+
+structuredResults={}
+structuredResults["Raw"]=results
+###just a refernce to the original service responses in case we want to look at them again
+
+##create the nReferences list of tables
+structuredResults["nFeatures"]={}
+structuredResults["times"]={}
+for i in range(0,len(OperatingCurveIDs())):
+    curveName=OperatingCurveIDs()[i]
+    print(curveName)
+    structuredResults["nFeatures"][curveName]=[]
+    structuredResults["times"][curveName]=[]
+    for imgIndex in results:
+        structuredResults["nFeatures"][curveName].append(imgIndex.outputFrames[i].nLeft)
+        structuredResults["times"][curveName].append(imgIndex.outputFrames[i].processingTime[0].seconds*1000)
+        #print(singleDetectionResult.nLeft,singleDetectionResult.processingTime[0].seconds*1000)
+
+
+
+    
+    
 fileName=projectFolder.getFeaturePath(args.loopID,args.detectorType)+"_jetsonCurves.p"
 outFile=open(fileName,"wb")
 print("outFile",fileName)
-pickle.dump(results,outFile)
+pickle.dump(structuredResults,outFile)
 outFile.close()
 
 
