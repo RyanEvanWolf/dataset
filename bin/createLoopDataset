@@ -1,0 +1,65 @@
+#!/usr/bin/env python
+
+from bumblebee.stereo import *
+from bumblebee.utils import createDir
+from bumblebee.drawing import *
+import argparse
+import rospy
+import copy
+import os
+import copy
+import cv2
+import pickle
+parser =argparse.ArgumentParser()
+parser.add_argument("rootDatasetImages",
+                    help="Directory to the extracted bayer encoded stereo images",
+                    type=str)
+parser.add_argument("--outputDirectory",
+                    help="Directory where to save the output dataset, defaults to ~/DATA_ROOTFOLDER where ROOTFOLDER is the folder containing the original images")
+args,unknown=parser.parse_known_args()
+
+rospy.init_node("loop_dataset_create")
+bumblebee=stereoCamera()
+
+
+rootDir="/home/ryan/DATA_"+args.rootDatasetImages[args.rootDatasetImages.rfind("/")+1:]
+createDir(rootDir)
+createDir(rootDir+"/left/debayer")
+createDir(rootDir+"/left/rectified")
+createDir(rootDir+"/right/debayer")
+createDir(rootDir+"/right/rectified")
+#######################
+######get all image names
+
+imageFiles=sorted(os.listdir(args.rootDatasetImages))
+
+timingResults={}
+timingResults["leftDebayer"]=[]
+timingResults["leftRectification"]=[]
+timingResults["leftRectificationInt"]=[]
+
+jetsonResults=copy.deepcopy(timingResults)
+for i in range(0,len(imageFiles)):
+    currentImageFile=args.rootDatasetImages+"/"+imageFiles[i]
+    print(currentImageFile)
+    fullImage=cv2.imread(currentImageFile,cv2.IMREAD_GRAYSCALE)
+
+    ld,rd,lt=bumblebee.debayerImage(fullImage)
+    lrect,rRect,lrectT=bumblebee.rectifyImage(ld,rd)
+    lrect,rRect,lrectint=bumblebee.rectifyImage(ld,rd,False)
+    cv2.imwrite(rootDir+"/left/debayer/"+imageFiles[i],ld)
+    cv2.imwrite(rootDir+"/left/rectified/"+imageFiles[i],lrect)
+    cv2.imwrite(rootDir+"/right/debayer/"+imageFiles[i],rd)
+    cv2.imwrite(rootDir+"/right/rectified/"+imageFiles[i],rRect)
+    print(lt,lrectT,lrectint)
+    timingResults["leftDebayer"].append(lt)
+    timingResults["leftRectification"].append(lrectT)
+    timingResults["leftRectificationInt"].append(lrectint)
+
+f=open(rootDir+"/i7_jetson.p","wb")
+pickle.dump(timingResults,f)
+f.close()
+
+
+
+print("completed")
