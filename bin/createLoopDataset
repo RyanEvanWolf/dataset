@@ -2,6 +2,7 @@
 
 from bumblebee.stereo import *
 from bumblebee.utils import createDir
+from bumblebee.srv import imageRectification,imageRectificationRequest,imageRectificationResponse
 from bumblebee.drawing import *
 import argparse
 import rospy
@@ -10,6 +11,7 @@ import os
 import copy
 import cv2
 import pickle
+from cv_bridge import CvBridge
 parser =argparse.ArgumentParser()
 parser.add_argument("rootDatasetImages",
                     help="Directory to the extracted bayer encoded stereo images",
@@ -21,7 +23,7 @@ args,unknown=parser.parse_known_args()
 rospy.init_node("loop_dataset_create")
 bumblebee=stereoCamera()
 
-
+cvb=CvBridge()
 rootDir="/home/ryan/DATA_"+args.rootDatasetImages[args.rootDatasetImages.rfind("/")+1:]
 createDir(rootDir)
 createDir(rootDir+"/left/debayer")
@@ -34,15 +36,26 @@ createDir(rootDir+"/right/rectified")
 imageFiles=sorted(os.listdir(args.rootDatasetImages))
 
 timingResults={}
-timingResults["leftDebayer"]=[]
-timingResults["leftRectification"]=[]
-timingResults["leftRectificationInt"]=[]
+timingResults["Debayer"]=[]
+timingResults["Rectification"]=[]
+timingResults["intRectification"]=[]
 
 jetsonResults=copy.deepcopy(timingResults)
+
+
+serviceName="/bumblebee_rectification_node/singleImageRectification"
+print("waiting for Service : "+serviceName)
+rospy.wait_for_service(serviceName)
+serv=rospy.ServiceProxy(serviceName,imageRectification)
+
 for i in range(0,len(imageFiles)):
+    newBumblebeeRectification=imageRectificationRequest()
     currentImageFile=args.rootDatasetImages+"/"+imageFiles[i]
     print(currentImageFile)
     fullImage=cv2.imread(currentImageFile,cv2.IMREAD_GRAYSCALE)
+    newBumblebeeRectification.fullImage=cvb.cv2_to_imgmsg(fullImage)
+    cvb.cv2_to_imgmsg(fullImage)
+    result=serv(newBumblebeeRectification)
 
     ld,rd,lt=bumblebee.debayerImage(fullImage)
     lrect,rRect,lrectT=bumblebee.rectifyImage(ld,rd)
@@ -52,12 +65,18 @@ for i in range(0,len(imageFiles)):
     cv2.imwrite(rootDir+"/right/debayer/"+imageFiles[i],rd)
     cv2.imwrite(rootDir+"/right/rectified/"+imageFiles[i],rRect)
     print(lt,lrectT,lrectint)
-    timingResults["leftDebayer"].append(lt)
-    timingResults["leftRectification"].append(lrectT)
-    timingResults["leftRectificationInt"].append(lrectint)
+    timingResults["Debayer"].append(lt*1000)#convert them all to milliseconds
+    timingResults["Rectification"].append(lrectT*1000)
+    timingResults["intRectification"].append(lrectint*1000)
+    jetsonResults["Debayer"].append(result.debayerTime*1000)
+    jetsonResults["Rectification"].append(result.rectificationTime*1000)
+    jetsonResults["intRectification"].append(result.intRectificationTime*1000)
 
-f=open(rootDir+"/i7_jetson.p","wb")
+f=open(rootDir+"/i7_timing.p","wb")
 pickle.dump(timingResults,f)
+f.close()
+f=open(rootDir+"/jetson_timing.p","wb")
+pickle.dump(jetsonResults,f)
 f.close()
 
 
