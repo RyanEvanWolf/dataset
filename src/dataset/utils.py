@@ -1,6 +1,8 @@
 import os
 import rosbag
 import yaml
+import cv2
+import copy
 BAG_FOLDER="Bags"
 FEATURES_FOLDER="Features"
 
@@ -60,6 +62,23 @@ def getDefaultDirectories():
     Direct["SimulationFolder"]="Simulation"
     Direct["CurvePickle"]="operatingCurves.p"
     return Direct
+
+
+def getImageSet(metaDataInfo,loopNumber):
+    rootDir=metaDataInfo[:metaDataInfo.rfind("/")]
+    f=open(metaDataInfo,'r')
+    loopData=f.readlines()
+    loopName,startImage,endImage=loopData[loopNumber-1][:-1].split(",")
+    startImage=int(startImage[:startImage.rfind(".")])
+    endImage=int(endImage[:endImage.rfind(".")])
+    setImages=[str(item).zfill(5)+".ppm" for item in range(startImage,endImage+1)]
+    limages=[rootDir+"/left/rectified/"+item for item in setImages]
+    rimages=[rootDir+"/right/rectified/"+item for item in setImages]
+    f.close()
+    return rootDir,limages,rimages
+
+def loadImages(imageList):
+    return copy.deepcopy([cv2.imread(item,cv2.IMREAD_GRAYSCALE) for item in imageList])
 
 class Directories:
     def __init__(self,foldStruct=getDefaultDirectories()):
