@@ -16,15 +16,17 @@ parser =argparse.ArgumentParser()
 parser.add_argument("rootDatasetImages",
                     help="Directory to the extracted bayer encoded stereo images",
                     type=str)
-parser.add_argument("--outputDirectory",
-                    help="Directory where to save the output dataset, defaults to ~/DATA_ROOTFOLDER where ROOTFOLDER is the folder containing the original images")
+parser.add_argument("--CalibrationID",help="The calibration ID used to generate the sequence, typicall A,B, or C",default="A")
 args,unknown=parser.parse_known_args()
 
 rospy.init_node("loop_dataset_create")
 bumblebee=stereoCamera()
 
 cvb=CvBridge()
-rootDir="/home/ryan/DATA_"+args.rootDatasetImages[args.rootDatasetImages.rfind("/")+1:]
+
+
+print(args.CalibrationID)
+rootDir="/home/ryan/DATA_"+args.rootDatasetImages[args.rootDatasetImages.rfind("/")+1:]+"_cal"+args.CalibrationID
 createDir(rootDir)
 createDir(rootDir+"/left/debayer")
 createDir(rootDir+"/left/rectified")

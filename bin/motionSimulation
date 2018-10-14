@@ -1,0 +1,80 @@
+#!/usr/bin/env python
+
+
+import math
+import time
+
+import pickle
+
+import cv2
+import numpy as np
+import rospy
+from cv_bridge import CvBridge
+
+from dataset.simulation import *
+from bumblebee.baseTypes import *
+from bumblebee.stereo import stereoCamera
+from bumblebee.utils import createDir
+from bumblebee.drawing import *
+
+rospy.init_node('motionSimulation')
+cvb=CvBridge()
+
+
+rootDir="/media/ryan/EXTRA/output/Simulation"
+createDir(rootDir)
+
+lSettings=getSimulatedLandmarkSettings()
+mSettings=MotionCategorySettings()
+
+f=open(rootDir+"/motion.p", 'wb')
+pickle.dump(mSettings,f)
+f.close()
+f=open(rootDir+"/landmark.p", 'wb')
+pickle.dump(lSettings,f)
+f.close()
+bumblebee=stereoCamera()
+f=open(rootDir+"/camera.p", 'wb')
+pickle.dump(bumblebee.kSettings,f)
+f.close()
+
+
+
+
+totalMotions=1
+
+for m in mSettings.keys():
+    motionDir=rootDir+"/"+m+"/straight/Data" 
+    createDir(motionDir)
+    print("generating "+m+" @ "+motionDir)
+    for j in range(0,totalMotions):
+        filename=motionDir+"/"+str(j+1).zfill(4)+".p"
+        imageDir=rootDir+"/"+m+"/straight/Images/"+str(j+1).zfill(4)
+        a=noisyRotations(mSettings[m]["RotationNoise"])
+        b=forwardTranslation(mSettings[m]["TranslationMean"],
+                            mSettings[m]["TranslationNoise"])
+
+        motionFirst=motionEdge()
+        motionFirst.initData(a,b)
+        simulator=motionSimulatedFrame()
+        simulator.simulate(bumblebee,lSettings,motionFirst,100)
+        print(filename,imageDir)
+        f=open(filename,"wb")
+        pickle.dump(simulator,f)
+        f.close()
+        interF=simulator.getIdealInterFrameEdge("70")
+        trackImage=255*np.ones((bumblebee.kSettings["height"],
+                                bumblebee.kSettings["width"],3),dtype=np.uint8)
+        drawROI(trackImage,bumblebee.kSettings["roi"])
+        plotTracks(trackImage,interF.getCurrentL(),interF.getPreviousL())
+        cv2.namedWindow("Left",cv2.WINDOW_NORMAL)
+        cv2.imshow("Left",trackImage)
+
+        trackImage1=255*np.ones((bumblebee.kSettings["height"],
+                                bumblebee.kSettings["width"],3),dtype=np.uint8)
+        drawROI(trackImage1,bumblebee.kSettings["roi"])
+        plotTracks(trackImage1,interF.getCurrentR(),interF.getPreviousR())
+        cv2.namedWindow("Right",cv2.WINDOW_NORMAL)
+        cv2.imshow("Right",trackImage1)
+        cv2.waitKey(0)
+cv2.destroyAllWindows()
