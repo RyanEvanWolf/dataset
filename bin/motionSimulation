@@ -41,7 +41,7 @@ f.close()
 
 
 
-totalMotions=1
+totalMotions=30
 
 for m in mSettings.keys():
     motionDir=rootDir+"/"+m+"/straight/Data" 
@@ -53,28 +53,12 @@ for m in mSettings.keys():
         a=noisyRotations(mSettings[m]["RotationNoise"])
         b=forwardTranslation(mSettings[m]["TranslationMean"],
                             mSettings[m]["TranslationNoise"])
-
-        motionFirst=motionEdge()
-        motionFirst.initData(a,b)
+        MotionH=createHomog(composeR(a[0,0],a[0,1],a[0,2]),##Tc
+                            b)
         simulator=motionSimulatedFrame()
-        simulator.simulate(bumblebee,lSettings,motionFirst,100)
+        simulator.simulate(bumblebee,lSettings,MotionH,1000)
         print(filename,imageDir)
         f=open(filename,"wb")
         pickle.dump(simulator,f)
         f.close()
-        interF=simulator.getIdealInterFrameEdge("70")
-        trackImage=255*np.ones((bumblebee.kSettings["height"],
-                                bumblebee.kSettings["width"],3),dtype=np.uint8)
-        drawROI(trackImage,bumblebee.kSettings["roi"])
-        plotTracks(trackImage,interF.getCurrentL(),interF.getPreviousL())
-        cv2.namedWindow("Left",cv2.WINDOW_NORMAL)
-        cv2.imshow("Left",trackImage)
 
-        trackImage1=255*np.ones((bumblebee.kSettings["height"],
-                                bumblebee.kSettings["width"],3),dtype=np.uint8)
-        drawROI(trackImage1,bumblebee.kSettings["roi"])
-        plotTracks(trackImage1,interF.getCurrentR(),interF.getPreviousR())
-        cv2.namedWindow("Right",cv2.WINDOW_NORMAL)
-        cv2.imshow("Right",trackImage1)
-        cv2.waitKey(0)
-cv2.destroyAllWindows()

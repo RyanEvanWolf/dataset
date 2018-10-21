@@ -45,7 +45,7 @@ def getSimulatedLandmarkSettings():
     Settings["MinimumOutlier"]=4.0 #pixels
     Settings["OutlierLevels"]=[0.05,0.1,0.15,0.2,0.25]
     Settings["GaussianNoise"]=[0.25,0.5,0.75,1.0,1.5,2,2.5]
-    Settings["operatingCurves"]=[0.3,0.5,0.7,0.9,1.0]
+    Settings["operatingCurves"]=[0.05,0.25,0.5,0.75,1.0]
     return Settings
 
 
@@ -70,7 +70,7 @@ def genRandomCoordinate(xAvg,yAvg,zAvg):
     Point[2,0]=np.random.normal(0,zAvg,1)
     return Point
 
-def genGaussianLandmark(camera,simSettings,motionEdge,landmark,gaussian):
+def genGaussianLandmark(camera,simSettings,landmark,gaussian):
     validPoint=False
     output=None
     while(not validPoint):
@@ -108,7 +108,7 @@ def genGaussianLandmark(camera,simSettings,motionEdge,landmark,gaussian):
             output=(stereoEdge(Xa,outAl,outAr,"A"),stereoEdge(Xb,outBl,outBr,"B"))
     return output
 
-def genOutlierLandmark(camera,simSettings,motionEdge,landmark):
+def genOutlierLandmark(camera,simSettings,landmark):
     validPoint=False
     output=None
     while(not validPoint):
@@ -155,7 +155,8 @@ def genLandmark(camera,simSettings,motionEdge):
         Xa=genRandomCoordinate(simSettings["Xdepth"],
                                   simSettings["Ydepth"],
                                   simSettings["Zdepth"])
-        Xb=motionEdge.Htransform.dot(Xa)
+        Xb=composeTransform(motionEdge[0:3,0:3],
+                            motionEdge[0:3,3]).dot(Xa)
         Xb/=Xb[3,0]
         La,Ra=camera.predictPoint(Xa)
         Lb,Rb=camera.predictPoint(Xb)
@@ -189,11 +190,11 @@ class motionSimulatedFrame:
         for landmarkIndex in range(0,totalLandmarks):
             singleDataPoint={}
             singleDataPoint["Ideal"]=genLandmark(camera,simSettings,motionEdge)
-            singleDataPoint["Outlier"]=genOutlierLandmark(camera,simSettings,motionEdge,singleDataPoint["Ideal"])
+            singleDataPoint["Outlier"]=genOutlierLandmark(camera,simSettings,singleDataPoint["Ideal"])
             singleDataPoint["Noise"]={}
             for noiseIndex in simSettings["GaussianNoise"]:
                 keyName=str(noiseIndex).replace(".","_")
-                singleDataPoint["Noise"][keyName]=genGaussianLandmark(camera,simSettings,motionEdge,singleDataPoint["Ideal"],noiseIndex)
+                singleDataPoint["Noise"][keyName]=genGaussianLandmark(camera,simSettings,singleDataPoint["Ideal"],noiseIndex)
             self.Points.append(singleDataPoint)
         ########
         ##determine operating curve selections
@@ -253,6 +254,30 @@ class motionSimulatedFrame:
         for j in currentSelection:
             result.currentEdges.append(self.Points[j]["Ideal"][1])
             result.previousEdges.append(self.Points[j]["Ideal"][0])
+            result.Tracks.append((j,j))
+        return result
+    def getOutlierInterFrameEdge(self,curveName,outlierName):
+        result=interFrameEdge()
+        currentSelection=self.OperatingCurves[curveName][0]
+        outlierSelection=self.OperatingCurves[curveName][1][outlierName]
+        outCount=0
+        for j in currentSelection:
+            if(j in outlierSelection):
+                result.currentEdges.append(self.Points[j]["Outlier"][1])
+                result.previousEdges.append(self.Points[j]["Outlier"][0])
+                result.Tracks.append((j,j))
+                outCount+=1
+            else:
+                result.currentEdges.append(self.Points[j]["Ideal"][1])
+                result.previousEdges.append(self.Points[j]["Ideal"][0])
+                result.Tracks.append((j,j))         
+        return result
+    def getNoisyInterFrameEdge(self,curveName,noiseName):
+        result=interFrameEdge()
+        currentSelection=self.OperatingCurves[curveName][0]
+        for j in currentSelection:
+            result.currentEdges.append(self.Points[j]["Noise"][noiseName][1])
+            result.previousEdges.append(self.Points[j]["Noise"][noiseName][0])
             result.Tracks.append((j,j))
         return result
     # def getIdealTrackCoordinates(self,operatingCurveName):
