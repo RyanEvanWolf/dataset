@@ -17,6 +17,7 @@ from bumblebee.stereo import stereoCamera
 from bumblebee.utils import createDir
 from bumblebee.drawing import *
 
+
 rospy.init_node('motionSimulation')
 cvb=CvBridge()
 
@@ -62,3 +63,24 @@ for m in mSettings.keys():
         pickle.dump(simulator,f)
         f.close()
 
+for m in mSettings.keys():
+    motionDir=rootDir+"/"+m+"/turn/Data" 
+    createDir(motionDir)
+    print("generating "+m+" @ "+motionDir)
+    for j in range(0,totalMotions):
+        filename=motionDir+"/"+str(j+1).zfill(4)+".p"
+        imageDir=rootDir+"/"+m+"/turn/Images/"+str(j+1).zfill(4)
+        a=dominantRotation(mSettings[m]["RotationMean"],
+                            mSettings[m]["RotationNoise"])
+        print(a)
+        b=forwardTranslation(mSettings[m]["TranslationMean"],
+                            mSettings[m]["TranslationNoise"])
+        
+        MotionH=createHomog(composeR(a[0,0],a[0,1],a[0,2]),##Tc
+                            b)
+        simulator=motionSimulatedFrame()
+        simulator.simulate(bumblebee,lSettings,MotionH,1000)
+        print(filename,imageDir)
+        f=open(filename,"wb")
+        pickle.dump(simulator,f)
+        f.close()

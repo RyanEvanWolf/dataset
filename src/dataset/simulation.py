@@ -20,17 +20,17 @@ def MotionCategorySettings():
     Settings["Medium"]={}
     Settings["Slow"]={}
     Settings["Fast"]["TranslationMean"]=0.066
-    Settings["Fast"]["RotationMean"]=0
+    Settings["Fast"]["RotationMean"]=30
     Settings["Fast"]["TranslationNoise"]=0.1*Settings["Fast"]["TranslationMean"] ##meters
     Settings["Fast"]["RotationNoise"]=8      ##degrees
 
     Settings["Medium"]["TranslationMean"]=0.044
-    Settings["Medium"]["RotationMean"]=0
+    Settings["Medium"]["RotationMean"]=20
     Settings["Medium"]["TranslationNoise"]=0.1*Settings["Medium"]["TranslationMean"] ##meters
     Settings["Medium"]["RotationNoise"]=4        ##degrees
 
     Settings["Slow"]["TranslationMean"]=0.022
-    Settings["Slow"]["RotationMean"]=0
+    Settings["Slow"]["RotationMean"]=10
     Settings["Slow"]["TranslationNoise"]=0.1*Settings["Slow"]["TranslationMean"] ##meters
     Settings["Slow"]["RotationNoise"]=1        ##degrees
     return Settings
@@ -61,6 +61,13 @@ def forwardTranslation(zBase=0.2,noise=0.1):
     out[0,0]=np.random.normal(0,noise,1)
     out[1,0]=np.random.normal(0,noise,1)
     out[2,0]=abs(np.random.normal(zBase,noise,1))
+    return out
+
+def dominantRotation(yawBase=15,noise=5):
+    out=np.zeros((1,3))
+    out[0,0]=np.random.normal(0,noise,1)
+    out[0,1]=np.random.normal(0,noise,1)
+    out[0,2]=abs(np.random.normal(yawBase,noise,1))   
     return out
 
 def genRandomCoordinate(xAvg,yAvg,zAvg):
