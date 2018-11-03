@@ -19,6 +19,7 @@ from bumblebee.drawing import *
 
 
 rospy.init_node('motionSimulation')
+
 cvb=CvBridge()
 
 
@@ -41,8 +42,7 @@ f.close()
 
 
 
-
-totalMotions=30
+totalMotions=20
 
 for m in mSettings.keys():
     motionDir=rootDir+"/"+m+"/straight/Data" 
@@ -57,7 +57,7 @@ for m in mSettings.keys():
         MotionH=createHomog(composeR(a[0,0],a[0,1],a[0,2]),##Tc
                             b)
         simulator=motionSimulatedFrame()
-        simulator.simulate(bumblebee,lSettings,MotionH,1000)
+        simulator.simulate(bumblebee,lSettings,MotionH,20)
         print(filename,imageDir)
         f=open(filename,"wb")
         pickle.dump(simulator,f)
@@ -79,7 +79,7 @@ for m in mSettings.keys():
         MotionH=createHomog(composeR(a[0,0],a[0,1],a[0,2]),##Tc
                             b)
         simulator=motionSimulatedFrame()
-        simulator.simulate(bumblebee,lSettings,MotionH,1000)
+        simulator.simulate(bumblebee,lSettings,MotionH,20)
         print(filename,imageDir)
         f=open(filename,"wb")
         pickle.dump(simulator,f)

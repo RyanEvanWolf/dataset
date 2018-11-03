@@ -43,11 +43,21 @@ def getSimulatedLandmarkSettings():
     Settings["Zdepth"]=4.0
     Settings["HeightMaximum"]=0.5
     Settings["MinimumOutlier"]=4.0 #pixels
-    Settings["OutlierLevels"]=[0.05,0.1,0.15,0.2,0.25]
-    Settings["GaussianNoise"]=[0.25,0.5,0.75,1.0,1.5,2,2.5]
-    Settings["operatingCurves"]=[0.05,0.25,0.5,0.75,1.0]
+    Settings["OutlierLevels"]=[0.05,0.125,0.2]
+    Settings["GaussianNoise"]=[0.5,1.0,1.5,2]
+    Settings["operatingCurves"]=[0.1,0.4,0.7,1.0]
     return Settings
 
+def genDefaultNisterSettings(cameraConfig):
+    settings={}
+    settings["Pl"]=cameraConfig["Pl"]
+    settings["Pr"]=cameraConfig["Pr"]
+    settings["pp"]=cameraConfig["pp"]
+    settings["k"]=cameraConfig["k"]
+    settings["f"]=cameraConfig["f"]
+    settings["threshold"]=3
+    settings["probability"]=0.99
+    return settings
 
 def noisyRotations(noise=5):
     out=np.zeros((1,3))
@@ -67,7 +77,7 @@ def dominantRotation(yawBase=15,noise=5):
     out=np.zeros((1,3))
     out[0,0]=np.random.normal(0,noise,1)
     out[0,1]=np.random.normal(0,noise,1)
-    out[0,2]=abs(np.random.normal(yawBase,noise,1))   
+    out[0,2]=np.clip(abs(np.random.normal(yawBase,noise,1)),0,40)   
     return out
 
 def genRandomCoordinate(xAvg,yAvg,zAvg):
@@ -107,8 +117,8 @@ def genGaussianLandmark(camera,simSettings,landmark,gaussian):
         lap,rap=camera.predictPoint(Xa)
         Xb=camera.reproject(outBl,outBr)
         lbp,rbp=camera.predictPoint(Xb)
-        if(camera.checkWithinROI(outAl)and camera.checkWithinROI(outAr)
-            and camera.checkWithinROI(outBl) and camera.checkWithinROI(outBr)
+        if(camera.checkWithinROI(outAl)and camera.checkWithinROI(outAr,False)
+            and camera.checkWithinROI(outBl) and camera.checkWithinROI(outBr,False)
             and (Xa[1,0]<simSettings["HeightMaximum"])
             and (Xb[1,0]<simSettings["HeightMaximum"])):
             validPoint=True
@@ -124,22 +134,34 @@ def genOutlierLandmark(camera,simSettings,landmark):
         outAr=np.ones((3,1))
         outBl=np.ones((3,1))
         outBr=np.ones((3,1))
-        outAl[0,0]=np.random.uniform(camera.kSettings["roi"][0],
-                                camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
-        outAl[1,0]=np.random.uniform(camera.kSettings["roi"][1],
-                                camera.kSettings["roi"][1] +camera.kSettings["roi"][3],1)
+        outAl[0,0]=np.random.uniform(camera.kSettings["lInfo"].roi.x_offset,
+                                camera.kSettings["lInfo"].roi.x_offset +camera.kSettings["lInfo"].roi.width,1)
+        outAl[1,0]=np.random.uniform(camera.kSettings["lInfo"].roi.y_offset,
+                                camera.kSettings["lInfo"].roi.y_offset +camera.kSettings["lInfo"].roi.height,1)
         outAr=copy.deepcopy(outAl)
-        outAr[0,0]=np.random.uniform(camera.kSettings["roi"][0],
-                                camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
-
-                                
-        outBl[0,0]=np.random.uniform(camera.kSettings["roi"][0],
-                                camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
-        outBl[1,0]=np.random.uniform(camera.kSettings["roi"][1],
-                                camera.kSettings["roi"][1] +camera.kSettings["roi"][3],1)
+        # outAl[0,0]=np.random.uniform(camera.kSettings["lInfo"].roi.x_offset["roi"][0],
+        #                         camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
+        # outAl[1,0]=np.random.uniform(camera.kSettings["roi"][1],
+        #                         camera.kSettings["roi"][1] +camera.kSettings["roi"][3],1)
+        # outAr=copy.deepcopy(outAl)
+        outAr[0,0]=np.random.uniform(camera.kSettings["rInfo"].roi.x_offset,
+                        camera.kSettings["rInfo"].roi.x_offset +camera.kSettings["rInfo"].roi.width,1)
+        # outAr[0,0]=np.random.uniform(camera.kSettings["roi"][0],
+        #                         camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
+        outBl[0,0]=np.random.uniform(camera.kSettings["lInfo"].roi.x_offset,
+                                camera.kSettings["lInfo"].roi.x_offset +camera.kSettings["lInfo"].roi.width,1)
+        outBl[1,0]=np.random.uniform(camera.kSettings["lInfo"].roi.y_offset,
+                                camera.kSettings["lInfo"].roi.y_offset +camera.kSettings["lInfo"].roi.height,1)
         outBr=copy.deepcopy(outBl)
-        outBr[0,0]=np.random.uniform(camera.kSettings["roi"][0],
-                                camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
+        outBr[0,0]=np.random.uniform(camera.kSettings["rInfo"].roi.x_offset,
+                        camera.kSettings["rInfo"].roi.x_offset +camera.kSettings["rInfo"].roi.width,1)                        
+        # outBl[0,0]=np.random.uniform(camera.kSettings["roi"][0],
+        #                         camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
+        # outBl[1,0]=np.random.uniform(camera.kSettings["roi"][1],
+        #                         camera.kSettings["roi"][1] +camera.kSettings["roi"][3],1)
+        # outBr=copy.deepcopy(outBl)
+        # outBr[0,0]=np.random.uniform(camera.kSettings["roi"][0],
+        #                         camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
         
         Xa=camera.reproject(outAl,outAr)
         lap,rap=camera.predictPoint(Xa)
@@ -158,6 +180,7 @@ def genOutlierLandmark(camera,simSettings,landmark):
 def genLandmark(camera,simSettings,motionEdge):
     validPoint=False
     output=None
+    count=0
     while(not validPoint):
         Xa=genRandomCoordinate(simSettings["Xdepth"],
                                   simSettings["Ydepth"],
@@ -167,14 +190,16 @@ def genLandmark(camera,simSettings,motionEdge):
         Xb/=Xb[3,0]
         La,Ra=camera.predictPoint(Xa)
         Lb,Rb=camera.predictPoint(Xb)
-        if(camera.checkWithinROI(La)and camera.checkWithinROI(Ra)
-            and camera.checkWithinROI(Lb) and camera.checkWithinROI(Rb)
+        if(camera.checkWithinROI(La)and camera.checkWithinROI(Ra,False)
+            and camera.checkWithinROI(Lb) and camera.checkWithinROI(Rb,False)
             and (Xa[1,0]<simSettings["HeightMaximum"])
             and (Xb[1,0]<simSettings["HeightMaximum"])):
             output=(stereoEdge(Xa,La,Ra,"A"),stereoEdge(Xb,Lb,Rb,"B"))
-            # output.tracks.append(stereoEdge(Xa,La,Ra,"A"))
-            # output.tracks.append(stereoEdge(Xb,Lb,Rb,"B"))
             validPoint=True
+        else:
+            count+=1
+            if(count%100000==0):
+                print("ideal Landmark Fail",count)
     return output
 
 
@@ -195,17 +220,21 @@ class motionSimulatedFrame:
         self.Points=[]
         self.OperatingCurves={}
         for landmarkIndex in range(0,totalLandmarks):
+            print("Landmark no:",landmarkIndex)
             singleDataPoint={}
+            print("genIdeal")
             singleDataPoint["Ideal"]=genLandmark(camera,simSettings,motionEdge)
+            print("genOutlier")
             singleDataPoint["Outlier"]=genOutlierLandmark(camera,simSettings,singleDataPoint["Ideal"])
+            print("genNoise")
             singleDataPoint["Noise"]={}
             for noiseIndex in simSettings["GaussianNoise"]:
                 keyName=str(noiseIndex).replace(".","_")
                 singleDataPoint["Noise"][keyName]=genGaussianLandmark(camera,simSettings,singleDataPoint["Ideal"],noiseIndex)
             self.Points.append(singleDataPoint)
-        ########
-        ##determine operating curve selections
-        ####
+    #     ########
+    #     ##determine operating curve selections
+    #     ####
         ##generate outliers, generate selection curves
         for i in simSettings["operatingCurves"]:
             
