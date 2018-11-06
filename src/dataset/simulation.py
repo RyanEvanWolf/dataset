@@ -13,6 +13,8 @@ from bumblebee.stereo import *
 from bumblebee.motion import *
 from bumblebee.baseTypes import *
 from bumblebee.drawing import *
+from bumblebee.camera import *
+
 
 def MotionCategorySettings():
     Settings={}
@@ -22,7 +24,7 @@ def MotionCategorySettings():
     Settings["Fast"]["TranslationMean"]=0.066
     Settings["Fast"]["RotationMean"]=30
     Settings["Fast"]["TranslationNoise"]=0.1*Settings["Fast"]["TranslationMean"] ##meters
-    Settings["Fast"]["RotationNoise"]=8      ##degrees
+    Settings["Fast"]["RotationNoise"]=8    ##degrees
 
     Settings["Medium"]["TranslationMean"]=0.044
     Settings["Medium"]["RotationMean"]=20
@@ -60,10 +62,10 @@ def genDefaultNisterSettings(cameraConfig):
     return settings
 
 def noisyRotations(noise=5):
-    out=np.zeros((1,3))
+    out=np.zeros((3,1))
     out[0,0]=np.random.normal(0,noise,1)
-    out[0,1]=np.random.normal(0,noise,1)
-    out[0,2]=np.random.normal(0,noise,1)
+    out[1,0]=np.random.normal(0,noise,1)
+    out[2,0]=np.random.normal(0,noise,1)
     return out
 
 def forwardTranslation(zBase=0.2,noise=0.1):
@@ -74,10 +76,10 @@ def forwardTranslation(zBase=0.2,noise=0.1):
     return out
 
 def dominantRotation(yawBase=15,noise=5):
-    out=np.zeros((1,3))
+    out=np.zeros((3,1))
     out[0,0]=np.random.normal(0,noise,1)
-    out[0,1]=np.random.normal(0,noise,1)
-    out[0,2]=np.clip(abs(np.random.normal(yawBase,noise,1)),0,40)   
+    out[1,0]=np.random.normal(0,noise,1)
+    out[2,0]=np.clip(abs(np.random.normal(yawBase,noise,1)),0,40)   
     return out
 
 def genRandomCoordinate(xAvg,yAvg,zAvg):
@@ -139,15 +141,10 @@ def genOutlierLandmark(camera,simSettings,landmark):
         outAl[1,0]=np.random.uniform(camera.kSettings["lInfo"].roi.y_offset,
                                 camera.kSettings["lInfo"].roi.y_offset +camera.kSettings["lInfo"].roi.height,1)
         outAr=copy.deepcopy(outAl)
-        # outAl[0,0]=np.random.uniform(camera.kSettings["lInfo"].roi.x_offset["roi"][0],
-        #                         camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
-        # outAl[1,0]=np.random.uniform(camera.kSettings["roi"][1],
-        #                         camera.kSettings["roi"][1] +camera.kSettings["roi"][3],1)
-        # outAr=copy.deepcopy(outAl)
+
         outAr[0,0]=np.random.uniform(camera.kSettings["rInfo"].roi.x_offset,
                         camera.kSettings["rInfo"].roi.x_offset +camera.kSettings["rInfo"].roi.width,1)
-        # outAr[0,0]=np.random.uniform(camera.kSettings["roi"][0],
-        #                         camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
+
         outBl[0,0]=np.random.uniform(camera.kSettings["lInfo"].roi.x_offset,
                                 camera.kSettings["lInfo"].roi.x_offset +camera.kSettings["lInfo"].roi.width,1)
         outBl[1,0]=np.random.uniform(camera.kSettings["lInfo"].roi.y_offset,
@@ -155,13 +152,7 @@ def genOutlierLandmark(camera,simSettings,landmark):
         outBr=copy.deepcopy(outBl)
         outBr[0,0]=np.random.uniform(camera.kSettings["rInfo"].roi.x_offset,
                         camera.kSettings["rInfo"].roi.x_offset +camera.kSettings["rInfo"].roi.width,1)                        
-        # outBl[0,0]=np.random.uniform(camera.kSettings["roi"][0],
-        #                         camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
-        # outBl[1,0]=np.random.uniform(camera.kSettings["roi"][1],
-        #                         camera.kSettings["roi"][1] +camera.kSettings["roi"][3],1)
-        # outBr=copy.deepcopy(outBl)
-        # outBr[0,0]=np.random.uniform(camera.kSettings["roi"][0],
-        #                         camera.kSettings["roi"][0] +camera.kSettings["roi"][2],1)
+
         
         Xa=camera.reproject(outAl,outAr)
         lap,rap=camera.predictPoint(Xa)
@@ -177,38 +168,39 @@ def genOutlierLandmark(camera,simSettings,landmark):
             output=(stereoEdge(Xa,outAl,outAr,"A"),stereoEdge(Xb,outBl,outBr,"B"))
     return output
 
-def genLandmark(camera,simSettings,motionEdge):
+def genLandmark(camera,simSettings,pose):
     validPoint=False
     output=None
     count=0
     while(not validPoint):
         Xa=genRandomCoordinate(simSettings["Xdepth"],
                                   simSettings["Ydepth"],
-                                  simSettings["Zdepth"])
-        Xb=composeTransform(motionEdge[0:3,0:3],
-                            motionEdge[0:3,3]).dot(Xa)
+                                  simSettings["Zdepth"])    
+        Xb=pose.getH().dot(Xa)
         Xb/=Xb[3,0]
+
+        test=np.linalg.inv(pose.getH()).dot(Xb)
+        test/=test[3,0]
+
         La,Ra=camera.predictPoint(Xa)
         Lb,Rb=camera.predictPoint(Xb)
+
+
         if(camera.checkWithinROI(La)and camera.checkWithinROI(Ra,False)
             and camera.checkWithinROI(Lb) and camera.checkWithinROI(Rb,False)
             and (Xa[1,0]<simSettings["HeightMaximum"])
             and (Xb[1,0]<simSettings["HeightMaximum"])):
             output=(stereoEdge(Xa,La,Ra,"A"),stereoEdge(Xb,Lb,Rb,"B"))
             validPoint=True
-        else:
-            count+=1
-            if(count%100000==0):
-                print("ideal Landmark Fail",count)
     return output
 
 
 class motionSimulatedFrame:
     def __init__(self):
-        self.motionEdge=None
+        self.pose=None
         self.Points=[]
         self.OperatingCurves={}
-    def simulate(self,camera,simSettings,motionEdge,totalLandmarks=5):
+    def simulate(self,camera,simSettings,pose,totalLandmarks=5):
         '''
         Gen full set of ideal points
 
@@ -216,17 +208,13 @@ class motionSimulatedFrame:
         within each operating curve
             ->
         '''
-        self.motionEdge=copy.deepcopy(motionEdge)
+        self.pose=copy.deepcopy(pose)
         self.Points=[]
         self.OperatingCurves={}
         for landmarkIndex in range(0,totalLandmarks):
-            print("Landmark no:",landmarkIndex)
             singleDataPoint={}
-            print("genIdeal")
-            singleDataPoint["Ideal"]=genLandmark(camera,simSettings,motionEdge)
-            print("genOutlier")
+            singleDataPoint["Ideal"]=genLandmark(camera,simSettings,self.pose)
             singleDataPoint["Outlier"]=genOutlierLandmark(camera,simSettings,singleDataPoint["Ideal"])
-            print("genNoise")
             singleDataPoint["Noise"]={}
             for noiseIndex in simSettings["GaussianNoise"]:
                 keyName=str(noiseIndex).replace(".","_")
@@ -263,17 +251,6 @@ class motionSimulatedFrame:
         # drawTracks(ImageLa,idealList)
 
         return ImageLa,ImageRa,ImageLb,ImageRb
-    def getIdealTracks(self,w,h,roi):
-        pass
-    #     interF=self.getIdealInterFrameEdge("100")
-    #     trackImage=255*np.ones((bumblebee.kSettings["height"],
-    #                             bumblebee.kSettings["width"],3),dtype=np.uint8)
-    #     drawROI(trackImage,bumblebee.kSettings["roi"])
-    #     plotTracks(trackImage,interF.getCurrentL(),interF.getPreviousL())
-    #     cv2.namedWindow("Left",cv2.WINDOW_NORMAL)
-    #     cv2.imshow("Left",trackImage)        
-    # def getOutlierImage(self,w,h,roi):
-        pass
     def getStereoFrame(self,name="",args=None):
         if("Outlier"==name):
             return 0
@@ -316,20 +293,3 @@ class motionSimulatedFrame:
             result.previousEdges.append(self.Points[j]["Noise"][noiseName][0])
             result.Tracks.append((j,j))
         return result
-    # def getIdealTrackCoordinates(self,operatingCurveName):
-    #     currentSelection=self.OperatingCurves[operatingCurveName][0]
-    #     currentPoints=[]
-    #     currentLandmarks=[]
-    #     previousPoints=[]
-    #     previousLandmarks=[]
-    #     for selectedIndex in currentSelection:
-    #         Points.append(self.Points[selectedIndex]["Ideal"])
-    #     return Points
-
-    #                 selectedSimPoint=currentFile["Points"][pointIndex]
-    #         currentPoints.append([selectedSimPoint.Data["Lb"][0,0],
-    #                             selectedSimPoint.Data["Lb"][1,0]]) 
-    #         currentLandmarks.append(selectedSimPoint.Data["Xb"]) 
-    #         previousPoints.append([selectedSimPoint.Data["La"][0,0],
-    #                 selectedSimPoint.Data["La"][1,0]])  
-    #         previousLandmarks.append(selectedSimPoint.Data["Xa"])

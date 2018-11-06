@@ -18,6 +18,10 @@ from bumblebee.utils import createDir
 from bumblebee.drawing import *
 
 
+
+from bumblebee.motion import *
+
+
 rospy.init_node('motionSimulation')
 
 cvb=CvBridge()
@@ -40,9 +44,7 @@ f=open(rootDir+"/camera.p", 'wb')
 pickle.dump(bumblebee.kSettings,f)
 f.close()
 
-
-
-totalMotions=20
+totalMotions=1
 
 for m in mSettings.keys():
     motionDir=rootDir+"/"+m+"/straight/Data" 
@@ -51,14 +53,17 @@ for m in mSettings.keys():
     for j in range(0,totalMotions):
         filename=motionDir+"/"+str(j+1).zfill(4)+".p"
         imageDir=rootDir+"/"+m+"/straight/Images/"+str(j+1).zfill(4)
-        a=noisyRotations(mSettings[m]["RotationNoise"])
-        b=forwardTranslation(mSettings[m]["TranslationMean"],
+        Rtheta=noisyRotations(mSettings[m]["RotationNoise"])
+        C=forwardTranslation(mSettings[m]["TranslationMean"],
                             mSettings[m]["TranslationNoise"])
-        MotionH=createHomog(composeR(a[0,0],a[0,1],a[0,2]),##Tc
-                            b)
+        R=composeR(Rtheta,degrees=True)
+        T=-R.dot(C)
+        forwardHomog=motionEdge(Rtheta,T)
         simulator=motionSimulatedFrame()
-        simulator.simulate(bumblebee,lSettings,MotionH,20)
+        simulator.simulate(bumblebee,lSettings,forwardHomog,500)
         print(filename,imageDir)
+        print(forwardHomog.getFormatted())
+        print("sim",Rtheta,C)
         f=open(filename,"wb")
         pickle.dump(simulator,f)
         f.close()
@@ -70,17 +75,18 @@ for m in mSettings.keys():
     for j in range(0,totalMotions):
         filename=motionDir+"/"+str(j+1).zfill(4)+".p"
         imageDir=rootDir+"/"+m+"/turn/Images/"+str(j+1).zfill(4)
-        a=dominantRotation(mSettings[m]["RotationMean"],
+        Rtheta=dominantRotation(mSettings[m]["RotationMean"],
                             mSettings[m]["RotationNoise"])
-        print(a)
-        b=forwardTranslation(mSettings[m]["TranslationMean"],
+        C=forwardTranslation(mSettings[m]["TranslationMean"],
                             mSettings[m]["TranslationNoise"])
-        
-        MotionH=createHomog(composeR(a[0,0],a[0,1],a[0,2]),##Tc
-                            b)
+        R=composeR(Rtheta,degrees=True)
+        T=-R.dot(C)
+        forwardHomog=motionEdge(Rtheta,T)
         simulator=motionSimulatedFrame()
-        simulator.simulate(bumblebee,lSettings,MotionH,20)
+        simulator.simulate(bumblebee,lSettings,forwardHomog,500)
         print(filename,imageDir)
+        print(forwardHomog.getFormatted())
+        print("sim",Rtheta,C)
         f=open(filename,"wb")
         pickle.dump(simulator,f)
         f.close()
