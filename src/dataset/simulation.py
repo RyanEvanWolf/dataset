@@ -45,7 +45,7 @@ def getSimulatedLandmarkSettings():
     Settings["Zdepth"]=4.0
     Settings["HeightMaximum"]=0.5
     Settings["MinimumOutlier"]=4.0 #pixels
-    Settings["OutlierLevels"]=[0.05,0.125,0.2]
+    Settings["OutlierLevels"]=[0.05,0.12,0.2]
     Settings["GaussianNoise"]=[0.5,1.0,1.5,2]
     Settings["operatingCurves"]=[0.1,0.4,0.7,1.0]
     return Settings
@@ -194,102 +194,349 @@ def genLandmark(camera,simSettings,pose):
             validPoint=True
     return output
 
+def ROIcheck(pt,roi):
+    ###
+    ##check width
+    if((pt[0,0]>=roi[0])and(pt[0,0]<=(roi[0]+roi[2]))):
+        if((pt[1,0]>=roi[1])and(pt[1,0]<=(roi[1]+roi[3]))):   
+            return True
+        else:
+            return False
+    else:
+        return False
 
-class motionSimulatedFrame:
-    def __init__(self):
-        self.pose=None
-        self.Points=[]
-        self.OperatingCurves={}
-    def simulate(self,camera,simSettings,pose,totalLandmarks=5):
-        '''
-        Gen full set of ideal points
 
-        select the operating curves
-        within each operating curve
-            ->
-        '''
-        self.pose=copy.deepcopy(pose)
-        self.Points=[]
+class outlierWindow(slidingWindow):
+    def __init__(self,Ksettings):
+        super(outlierWindow,self).__init__(cameraSettings=Ksettings)
+        pass
+
+class noisyWindow(slidingWindow):
+    def __init__(self,Ksettings):
+        super(noisyWindow,self).__init__(cameraSettings=Ksettings)
         self.OperatingCurves={}
-        for landmarkIndex in range(0,totalLandmarks):
-            singleDataPoint={}
-            singleDataPoint["Ideal"]=genLandmark(camera,simSettings,self.pose)
-            singleDataPoint["Outlier"]=genOutlierLandmark(camera,simSettings,singleDataPoint["Ideal"])
-            singleDataPoint["Noise"]={}
-            for noiseIndex in simSettings["GaussianNoise"]:
-                keyName=str(noiseIndex).replace(".","_")
-                singleDataPoint["Noise"][keyName]=genGaussianLandmark(camera,simSettings,singleDataPoint["Ideal"],noiseIndex)
-            self.Points.append(singleDataPoint)
-    #     ########
-    #     ##determine operating curve selections
-    #     ####
-        ##generate outliers, generate selection curves
-        for i in simSettings["operatingCurves"]:
+        self.noisyWindows={}    
+    def simulate(self,idealData,lSettings):
+
+        self.OperatingCurves=copy.deepcopy(idealData.OperatingCurves)
+        for opCurve in self.OperatingCurves.keys():
+            currentN=len(self.OperatingCurves[opCurve])
+            print(currentN)
+            currentNoiseW=idealWindow(self.kSettings)
+            currentNoiseW.X=np.zeros((6+currentN*4),1)
+            currentNoiseW.M=[]
+            currentNoiseW.nLandmarks=currentN
+            self.tracks=[]
+            #populate the X and M vectors
             
+
+
+        # self.X=copy.deepcopy(idealDa
+            for noise in lSettings["GaussianNoise"]:
+                print(noise)
+
+        # self.M=copy.deepcopy(idealData.M)
+        # self.tracks=copy.deepcopy(idealData.tracks)
+        # self.inliers=None
+        # self.nLandmarks=
+        # self.nPoses=frames
+        # abcd=None
+
+class idealWindow(slidingWindow):
+    def __init__(self,Ksettings):
+        super(idealWindow,self).__init__(cameraSettings=Ksettings)
+        self.motion=np.zeros((6,1))
+        self.OperatingCurves={}
+    def simulate(self,lSettings,Rtheta,C,nPoints=500):
+        '''
+        lSettings= landmark simulation settings
+        Rtheta= [roll pitch yaw]^T (in degrees)
+        C  = metric distance such that P=[R|-RC]=[R|T]
+        '''
+        self.motion[0:3,0]=np.radians(Rtheta).reshape(3)
+        R=composeR(self.motion[0:3,0])
+        self.motion[3:6,0]=-R.dot(C).flatten()
+        self.nLandmarks=nPoints
+        self.X=np.zeros((6 + nPoints*4,1))
+        self.X[0:6,0]=self.motion.flatten()
+        self.tracks=[]
+        for i in range(nPoints):
+            self.tracks.append(range(self.nPoses))
+            validPoint=False
+            while(not validPoint):
+                Xa=genRandomCoordinate(lSettings["Xdepth"],
+                                        lSettings["Ydepth"],
+                                        lSettings["Zdepth"])    
+                Xb=getH(self.motion).dot(Xa)
+                Xb/=Xb[3,0]
+                La,Ra=self.kSettings["Pl"].dot(Xa),self.kSettings["Pr"].dot(Xa)
+                Lb,Rb=self.kSettings["Pl"].dot(Xb),self.kSettings["Pr"].dot(Xb)
+                La/=La[2,0]
+                Ra/=Ra[2,0]
+                Lb/=Lb[2,0]
+                Rb/=Rb[2,0]
+
+                if(self.checkWithinROI(La)and self.checkWithinROI(Ra,False)
+                    and self.checkWithinROI(Lb) and self.checkWithinROI(Rb,False)
+                    and (Xa[1,0]<lSettings["HeightMaximum"])
+                    and (Xb[1,0]<lSettings["HeightMaximum"])):
+                    validPoint=True
+                    #########
+                    ##pack into Frame
+                    self.X[6 +4*i:6+4*i+4,0]=Xa.reshape(4)
+                    M=np.zeros((4,2))
+                    M[0:2,0]=La[0:2,0]#,Ra[0:2,0]))
+                    M[2:4,0]=Ra[0:2,0]
+                    M[0:2,1]=Lb[0:2,0]#,Ra[0:2,0]))
+                    M[2:4,1]=Rb[0:2,0]
+                    self.M.append(M)
+        #######
+        ##define simulation curves
+         #generate outliers, generate selection curves
+        for i in lSettings["operatingCurves"]:
             keyName=str(int(i*100))
-            nFeatures=int(i*totalLandmarks)
+            nFeatures=int(i*nPoints)
             #self.OperatingCurves[keyName]
-            currentSamples=sorted(random.sample(range(0,totalLandmarks),nFeatures))
-            outlierSelections={}
-            for j in simSettings["OutlierLevels"]:
+            currentSamples=sorted(random.sample(range(0,nPoints),nFeatures))
+            self.OperatingCurves[keyName]=currentSamples
+    def checkWithinROI(self,pt,left=True):
+        if(left):
+            return ROIcheck(pt,ROIfrmMsg(self.kSettings["lInfo"].roi))
+        else:
+            return ROIcheck(pt,ROIfrmMsg(self.kSettings["rInfo"].roi))      
+
+
+
+
+class simulatedDataFrame:
+    def __init__(self,cameraType="subROI",configurationTopic=""):
+        self.kSettings={}
+        self.OperatingCurves={}
+        if(configurationTopic==""):
+            self.kSettings=getCameraSettingsFromServer(cameraType=cameraType)
+        else:
+            self.kSettings=getCameraSettingsFromServer(configurationTopic,cameraType)
+    
+        self.idealMotion=np.zeros((6,1))   #in H=[R|T] shape (Metric= [R|-RC])
+        self.idealWindow=slidingWindow(self.kSettings)
+        self.Gaussian={}
+        self.Outlier={}
+    def runSimulation(self,lSettings,Rtheta,C,nPoints=500):
+        '''
+        lSettings= landmark simulation settings
+        Rtheta= [roll pitch yaw]^T (in degrees)
+        C  = metric distance such that P=[R|-RC]=[R|T]
+        '''
+        #########
+        ##generate Ideal Motion
+        self.idealMotion[0:3,0]=np.radians(Rtheta).reshape(3)
+        R=composeR(self.idealMotion[0:3,0])
+        self.idealMotion[3:6,0]=-R.dot(C).flatten()
+        self.idealWindow.nLandmarks=nPoints
+        self.idealWindow.X=np.zeros((6 + nPoints*4,1))
+        self.idealWindow.X[0:6,0]=self.idealMotion.flatten()
+        self.idealWindow.tracks=[]
+        for i in range(nPoints):
+            self.idealWindow.tracks.append(range(self.idealWindow.nPoses))
+            validPoint=False
+            while(not validPoint):
+                Xa=genRandomCoordinate(lSettings["Xdepth"],
+                                        lSettings["Ydepth"],
+                                        lSettings["Zdepth"])    
+                Xb=getH(self.idealMotion).dot(Xa)
+                Xb/=Xb[3,0]
+                La,Ra=self.kSettings["Pl"].dot(Xa),self.kSettings["Pr"].dot(Xa)
+                Lb,Rb=self.kSettings["Pl"].dot(Xb),self.kSettings["Pr"].dot(Xb)
+                La/=La[2,0]
+                Ra/=Ra[2,0]
+                Lb/=Lb[2,0]
+                Rb/=Rb[2,0]
+
+                if(self.checkWithinROI(La)and self.checkWithinROI(Ra,False)
+                    and self.checkWithinROI(Lb) and self.checkWithinROI(Rb,False)
+                    and (Xa[1,0]<lSettings["HeightMaximum"])
+                    and (Xb[1,0]<lSettings["HeightMaximum"])):
+                    validPoint=True
+                    #########
+                    ##pack into Frame
+                    self.idealWindow.X[6 +4*i:6+4*i+4,0]=Xa.reshape(4)
+                    M=np.zeros((4,2))
+                    M[0:2,0]=La[0:2,0]#,Ra[0:2,0]))
+                    M[2:4,0]=Ra[0:2,0]
+                    M[0:2,1]=Lb[0:2,0]#,Ra[0:2,0]))
+                    M[2:4,1]=Rb[0:2,0]
+                    self.idealWindow.M.append(M)
+        #######
+        ##define simulation curves
+        for i in lSettings["operatingCurves"]:
+            keyName=str(int(i*100))
+            nFeatures=int(i*nPoints)
+            currentSamples=sorted(random.sample(range(0,nPoints),nFeatures))
+            self.OperatingCurves[keyName]=currentSamples
+            self.Outlier[keyName]={}
+            for j in lSettings["OutlierLevels"]:
                 nOutliers=int(j*nFeatures)
                 outlierKeyName=str(int(j*100))
-                outlierSelections[outlierKeyName]=sorted(random.sample(range(0,nFeatures),nOutliers))
-            self.OperatingCurves[keyName]=(currentSamples,outlierSelections)      
-    def getGaussianImage(self,w,h,roi):
-        ImageLa=255*np.ones((h,w,3),dtype=np.uint8)
-        drawROI(ImageLa,roi)
+                self.Outlier[keyName][outlierKeyName]={}
+                self.Outlier[keyName][outlierKeyName]["Outliers"]=sorted(random.sample(range(0,nFeatures),nOutliers))
+                self.Outlier[keyName][outlierKeyName]["Inliers"]=list(set(range(0,nFeatures))-set(self.Outlier[keyName][outlierKeyName]["Outliers"]))        #####
+        ##add Gaussian noise curves
+        for noise in lSettings["GaussianNoise"]:
+            keyName=str(noise)
+            self.Gaussian[keyName]=copy.deepcopy(self.idealWindow)
+            #####
+            ##add Gaussian Noise onto projections
+            for m in range(0,nPoints):
+                validNoise=False
+                while(not validNoise):
+                    testPts=copy.deepcopy(self.Gaussian[keyName].M[m])+np.random.normal(0,noise,self.Gaussian[keyName].M[m].shape)
+                    if( self.checkWithinROI(testPts[0:2,0].reshape(2,1))
+                        and self.checkWithinROI(testPts[2:4,0].reshape(2,1),left=False)
+                        and self.checkWithinROI(testPts[0:2,1].reshape(2,1))
+                        and self.checkWithinROI(testPts[2:4,1].reshape(2,1),left=False)):
+                        validNoise=True
+                        self.Gaussian[keyName].M[m]=testPts     
+        #####
+        ##generate outlier measurements
+        moutliers=[]
 
-        ImageLb=copy.deepcopy(ImageLa)
-        ImageRa=copy.deepcopy(ImageLa)
-        ImageRb=copy.deepcopy(ImageLa)
+        for i in self.idealWindow.M:
+            outlierM=copy.deepcopy(i)
 
-        idealList=self.getStereoFrame()
-        drawTracks(ImageLa,idealList)
-        # drawTracks(ImageLa,idealList)
-        # drawTracks(ImageLa,idealList)
-        # drawTracks(ImageLa,idealList)
+            moutliers.append(outlierM)
+        for i in lSettings["operatingCurves"]:
 
-        return ImageLa,ImageRa,ImageLb,ImageRb
-    def getStereoFrame(self,name="",args=None):
-        if("Outlier"==name):
-            return 0
-        elif("Noise"==name):
-            return 0
+            keyName=str(int(i*100))
+            for outlier in lSettings["OutlierLevels"]:
+                outlierKeyName=str(int(outlier*100))
+                self.Outlier[keyName][outlierKeyName]["data"]=copy.deepcopy(self.idealWindow.getSubset(self.OperatingCurves[keyName]))
+                for outIndex in self.Outlier[keyName][outlierKeyName]["Outliers"]:
+
+                    lU=np.random.uniform(self.kSettings["lInfo"].roi.x_offset,
+                                            self.kSettings["lInfo"].roi.x_offset+
+                                            self.kSettings["lInfo"].roi.width,2)
+                    lv=np.random.uniform(self.kSettings["lInfo"].roi.y_offset,
+                                            self.kSettings["lInfo"].roi.y_offset+
+                                            self.kSettings["lInfo"].roi.height,2)
+
+                    rU=np.random.uniform(self.kSettings["rInfo"].roi.x_offset,
+                                            self.kSettings["rInfo"].roi.x_offset+
+                                            self.kSettings["rInfo"].roi.width,2)
+                    rv=np.random.uniform(self.kSettings["rInfo"].roi.y_offset,
+                                            self.kSettings["rInfo"].roi.y_offset+
+                                            self.kSettings["rInfo"].roi.height,2)
+                    outlierM[0,0]=lU[0]
+                    outlierM[1,0]=lv[0]
+                    outlierM[2,0]=rU[0]
+                    outlierM[3,0]=rv[0]
+
+
+                    outlierM[0,1]=lU[1]
+                    outlierM[1,1]=lv[1]
+                    outlierM[2,1]=rU[1]
+                    outlierM[3,1]=rv[1]
+                    self.Outlier[keyName][outlierKeyName]["data"].M[outIndex]=outlierM
+        #     #####
+    def checkWithinROI(self,pt,left=True):
+        if(left):
+            return ROIcheck(pt,ROIfrmMsg(self.kSettings["lInfo"].roi))
         else:
-            arrayTracks=[]
-            for i in self.Points:
-                arrayTracks.append(i["Ideal"])
-            return arrayTracks
-    def getIdealInterFrameEdge(self,curveName="100"):
-        result=interFrameEdge()
-        currentSelection=self.OperatingCurves[curveName][0]
-        for j in currentSelection:
-            result.currentEdges.append(self.Points[j]["Ideal"][1])
-            result.previousEdges.append(self.Points[j]["Ideal"][0])
-            result.Tracks.append((j,j))
-        return result
-    def getOutlierInterFrameEdge(self,curveName,outlierName):
-        result=interFrameEdge()
-        currentSelection=self.OperatingCurves[curveName][0]
-        outlierSelection=self.OperatingCurves[curveName][1][outlierName]
-        outCount=0
-        for j in currentSelection:
-            if(j in outlierSelection):
-                result.currentEdges.append(self.Points[j]["Outlier"][1])
-                result.previousEdges.append(self.Points[j]["Outlier"][0])
-                result.Tracks.append((j,j))
-                outCount+=1
-            else:
-                result.currentEdges.append(self.Points[j]["Ideal"][1])
-                result.previousEdges.append(self.Points[j]["Ideal"][0])
-                result.Tracks.append((j,j))         
-        return result
-    def getNoisyInterFrameEdge(self,curveName,noiseName):
-        result=interFrameEdge()
-        currentSelection=self.OperatingCurves[curveName][0]
-        for j in currentSelection:
-            result.currentEdges.append(self.Points[j]["Noise"][noiseName][1])
-            result.previousEdges.append(self.Points[j]["Noise"][noiseName][0])
-            result.Tracks.append((j,j))
-        return result
+            return ROIcheck(pt,ROIfrmMsg(self.kSettings["rInfo"].roi))          
+# class motionSimulatedFrame:
+#     def __init__(self):
+#         self.pose=None
+#         self.Points=[]
+#         self.OperatingCurves={}
+#     def simulate(self,camera,simSettings,pose,totalLandmarks=5):
+#         '''
+#         Gen full set of ideal points
+
+#         select the operating curves
+#         within each operating curve
+#             ->
+#         '''
+#         self.pose=copy.deepcopy(pose)
+#         self.Points=[]
+#         self.OperatingCurves={}
+#         for landmarkIndex in range(0,totalLandmarks):
+#             singleDataPoint={}
+#             singleDataPoint["Ideal"]=genLandmark(camera,simSettings,self.pose)
+#             singleDataPoint["Outlier"]=genOutlierLandmark(camera,simSettings,singleDataPoint["Ideal"])
+#             singleDataPoint["Noise"]={}
+#             for noiseIndex in simSettings["GaussianNoise"]:
+#                 keyName=str(noiseIndex).replace(".","_")
+#                 singleDataPoint["Noise"][keyName]=genGaussianLandmark(camera,simSettings,singleDataPoint["Ideal"],noiseIndex)
+#             self.Points.append(singleDataPoint)
+#     #     ########
+#     #     ##determine operating curve selections
+#     #     ####
+#         ##generate outliers, generate selection curves
+#         for i in simSettings["operatingCurves"]:
+            
+#             keyName=str(int(i*100))
+#             nFeatures=int(i*totalLandmarks)
+#             #self.OperatingCurves[keyName]
+#             currentSamples=sorted(random.sample(range(0,totalLandmarks),nFeatures))
+#             outlierSelections={}
+#             for j in simSettings["OutlierLevels"]:
+#                 nOutliers=int(j*nFeatures)
+#                 outlierKeyName=str(int(j*100))
+#                 outlierSelections[outlierKeyName]=sorted(random.sample(range(0,nFeatures),nOutliers))
+#             self.OperatingCurves[keyName]=(currentSamples,outlierSelections)      
+#     def getGaussianImage(self,w,h,roi):
+#         ImageLa=255*np.ones((h,w,3),dtype=np.uint8)
+#         drawROI(ImageLa,roi)
+
+#         ImageLb=copy.deepcopy(ImageLa)
+#         ImageRa=copy.deepcopy(ImageLa)
+#         ImageRb=copy.deepcopy(ImageLa)
+
+#         idealList=self.getStereoFrame()
+#         drawTracks(ImageLa,idealList)
+#         # drawTracks(ImageLa,idealList)
+#         # drawTracks(ImageLa,idealList)
+#         # drawTracks(ImageLa,idealList)
+
+#         return ImageLa,ImageRa,ImageLb,ImageRb
+#     def getStereoFrame(self,name="",args=None):
+#         if("Outlier"==name):
+#             return 0
+#         elif("Noise"==name):
+#             return 0
+#         else:
+#             arrayTracks=[]
+#             for i in self.Points:
+#                 arrayTracks.append(i["Ideal"])
+#             return arrayTracks
+#     def getIdealInterFrameEdge(self,curveName="100"):
+#         result=interFrameEdge()
+#         currentSelection=self.OperatingCurves[curveName][0]
+#         for j in currentSelection:
+#             result.currentEdges.append(self.Points[j]["Ideal"][1])
+#             result.previousEdges.append(self.Points[j]["Ideal"][0])
+#             result.Tracks.append((j,j))
+#         return result
+#     def getOutlierInterFrameEdge(self,curveName,outlierName):
+#         result=interFrameEdge()
+#         currentSelection=self.OperatingCurves[curveName][0]
+#         outlierSelection=self.OperatingCurves[curveName][1][outlierName]
+#         outCount=0
+#         for j in currentSelection:
+#             if(j in outlierSelection):
+#                 result.currentEdges.append(self.Points[j]["Outlier"][1])
+#                 result.previousEdges.append(self.Points[j]["Outlier"][0])
+#                 result.Tracks.append((j,j))
+#                 outCount+=1
+#             else:
+#                 result.currentEdges.append(self.Points[j]["Ideal"][1])
+#                 result.previousEdges.append(self.Points[j]["Ideal"][0])
+#                 result.Tracks.append((j,j))         
+#         return result
+#     def getNoisyInterFrameEdge(self,curveName,noiseName):
+#         result=interFrameEdge()
+#         currentSelection=self.OperatingCurves[curveName][0]
+#         for j in currentSelection:
+#             result.currentEdges.append(self.Points[j]["Noise"][noiseName][1])
+#             result.previousEdges.append(self.Points[j]["Noise"][noiseName][0])
+#             result.Tracks.append((j,j))
+#         return result
