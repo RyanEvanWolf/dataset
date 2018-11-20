@@ -46,7 +46,7 @@ def getSimulatedLandmarkSettings():
     Settings["HeightMaximum"]=0.5
     Settings["MinimumOutlier"]=4.0 #pixels
     Settings["OutlierLevels"]=[0.05,0.12,0.2]
-    Settings["GaussianNoise"]=[0.5,1.0,1.5,2]
+    Settings["GaussianNoise"]=[0.25,0.75,1.25]
     Settings["operatingCurves"]=[0.1,0.4,0.7,1.0]
     return Settings
 
@@ -321,6 +321,47 @@ class simulatedDataFrame:
         self.idealWindow=slidingWindow(self.kSettings)
         self.Gaussian={}
         self.Outlier={}
+    ################
+    ##admin
+    ################
+    def serializeFrame(self):
+        binDiction={}
+        binDiction["kSettings"]=pickle.dumps(self.kSettings)
+        binDiction["OperatingCurves"]=pickle.dumps(self.OperatingCurves)
+        binDiction["idealWindow"]=self.idealWindow.serializeWindow()
+        binDiction["idealMotion"]=pickle.dumps(self.idealMotion)
+        binDiction["Gaussian"]={}
+        binDiction["Outlier"]={}
+        for i in self.Gaussian.keys():
+            binDiction["Gaussian"][i]=self.Gaussian[i].serializeWindow()
+        for i in self.Outlier.keys():
+            binDiction["Outlier"][i]={}
+            for j in self.Outlier[i].keys():
+                binDiction["Outlier"][i][j]={}
+                binDiction["Outlier"][i][j]["Outliers"]=pickle.dumps(self.Outlier[i][j]["Outliers"])
+                binDiction["Outlier"][i][j]["Inliers"]=pickle.dumps(self.Outlier[i][j]["Inliers"])
+                binDiction["Outlier"][i][j]["data"]=self.Outlier[i][j]["data"].serializeWindow()
+        return msgpack.dumps(binDiction)
+    def deserializeFrame(self,data):
+        intern=msgpack.loads(data)
+        self.kSettings=pickle.loads(intern["kSettings"])
+        self.OperatingCurves=pickle.loads(intern["OperatingCurves"])
+        self.idealWindow=slidingWindow(pickle.loads(intern["kSettings"]))
+        self.idealWindow.deserializeWindow(intern["idealWindow"])
+        self.idealMotion=pickle.dumps(intern["idealMotion"])
+        self.Gaussian={}
+        for i in intern["Gaussian"].keys():
+            self.Gaussian[i]=slidingWindow(pickle.loads(intern["kSettings"]))
+            self.Gaussian[i].deserializeWindow(intern["Gaussian"][i])
+        self.Outlier={}
+        for i in intern["Outlier"].keys():
+            self.Outlier[i]={}
+            for j in intern["Outlier"][i].keys():
+                self.Outlier[i][j]={}
+                self.Outlier[i][j]["Outliers"]=pickle.loads(intern["Outlier"][i][j]["Outliers"])
+                self.Outlier[i][j]["Inliers"]=pickle.loads(intern["Outlier"][i][j]["Inliers"])
+                self.Outlier[i][j]["data"]=slidingWindow(pickle.loads(intern["kSettings"]))
+                self.Outlier[i][j]["data"].deserializeWindow(intern["Outlier"][i][j]["data"])
     def runSimulation(self,lSettings,Rtheta,C,nPoints=500):
         '''
         lSettings= landmark simulation settings
