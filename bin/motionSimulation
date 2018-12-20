@@ -44,7 +44,7 @@ f=open(rootDir+"/camera.p", 'wb')
 pickle.dump(bumblebee.kSettings,f)
 f.close()
 
-totalMotions=5
+totalMotions=40
 
 for m in mSettings.keys():
     motionDir=rootDir+"/"+m+"/straight/Data" 
