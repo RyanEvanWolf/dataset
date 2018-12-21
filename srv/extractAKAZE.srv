@@ -1,6 +1,0 @@
-std_msgs/String imageDir
-dataset/AKAZE config
-std_msgs/String outputDir
----
-std_msgs/Int32 nleft
-std_msgs/Float64 averageTime 

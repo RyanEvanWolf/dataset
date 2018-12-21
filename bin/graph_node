@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+import os
+import copy
+import rospy
+import argparse
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import random
+
+from std_msgs.msg import Float32
+from matplotlib.widgets import Button
+
+parser =argparse.ArgumentParser()
+parser.add_argument("topics",
+                    help=("csv topic names"),
+                    type=str)
+args,unknown=parser.parse_known_args()
+
+
+ID=random.randint(1,20000)
+rospy.init_node("viewer_"+str(ID))
+
+global graphSet
+global l
+
+graphSet=[]
+
+f, ax = plt.subplots()
+
+# Fixing random state for reproducibility
+l, = ax.plot([], [], 'r-')
+plt.xlabel('x')
+plt.title(args.topics)
+
+
+
+
+def update(data):
+    global graphSet
+    graphSet.append(data.data)
+
+
+s=rospy.Subscriber(args.topics,Float32,update)
+
+axnext = plt.axes([0.9, 0.05, 0.1, 0.075])
+axf = plt.axes([0.95, 0.05, 0.1, 0.075])
+ax.set_xlim(0, 10)
+ax.set_ylim(0, 10000)    
+
+def update_line(num):
+    global graphSet
+    if(len(graphSet)>0):
+
+        current=copy.deepcopy(graphSet)
+        l.set_data(range(len(current)),current)
+    return l,
+
+def reset(e):
+    global graphSet
+    graphSet=[]
+
+def scale(e):
+    global graphSet
+    if(len(graphSet)>0):
+        ax.set_xlim(0, 1.2*len(graphSet))
+        ax.set_ylim(0, 1.2*max(graphSet))
+    else:
+        ax.set_xlim(0, 10)
+        ax.set_ylim(0, 10000)      
+
+bnext = Button(axnext, 'Reset')
+bnext.on_clicked(reset)
+
+bf = Button(axf, 'scale')
+bf.on_clicked(scale)
+
+
+line_ani = animation.FuncAnimation(f, update_line,interval=5)
+
+
+plt.show()

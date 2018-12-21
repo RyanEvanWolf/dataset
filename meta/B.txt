@@ -1,0 +1,10 @@
+B,/home/ryan/DATA/A
+B,1,00477.ppm,02606.ppm
+B,2,02607.ppm,04503.ppm
+B,3,04504.ppm,06076.ppm
+B,4,06077.ppm,07105.ppm
+B,5,07106.ppm,08102.ppm
+B,6,08103.ppm,09149.ppm
+B,7,09150.ppm,09741.ppm
+B,8,09742.ppm,10296.ppm
+B,9,10297.ppm,10860.ppm

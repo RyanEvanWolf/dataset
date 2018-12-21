@@ -11,7 +11,12 @@ import argparse
 #from dataset.utils import getImageSet,loadImages
 #from front_end.utils import *
 
-from dataset.utils import *
+from dataset.storage import *
+
+
+
+
+
 
 
 
@@ -28,13 +33,23 @@ if __name__ == '__main__':
     parser.add_argument("--delayMs",help="Delay in milliseconds between playback",default=1,type=int)
     args,unknown = parser.parse_known_args()
 
-    rootDir,lImages,rImages=getImageSet(args.meta_data,args.loop_number)
-    loopA=loadImages(lImages)
-    print(lImages[0],lImages[-1])
-    print(len(loopA))
-    for a in loopA:
-        cv2.imshow("a",a)
-        cv2.waitKey(args.delayMs)
+    data=vidPublisher("~/DATA_A_calB",1)
+
+1 ~/DATA_A_calB
+    l,r=data.getAllImages()
+    
+
+    for i in range(len(data.lAbsImgDir)):
+        data.publishImageIndex(i)
+        time.sleep(1)
+
+    # rootDir,lImages,rImages=getImageSet(args.meta_data,args.loop_number)
+    # loopA=loadImages(lImages)
+    # print(lImages[0],lImages[-1])
+    # print(len(loopA))
+    # for a in l:
+    #     cv2.imshow("a",a)
+    #     cv2.waitKey(args.delayMs)
     # print(args)
     # sequence=videoSequence(args.meta_data)
     # sequence.printSummary()

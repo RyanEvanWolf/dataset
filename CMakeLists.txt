@@ -34,6 +34,7 @@ find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
   message_generation
   cv_bridge
+  bumblebee
 )
 
 
@@ -85,16 +86,6 @@ catkin_python_setup()
 ## Generate services in the 'srv' folder
  add_service_files(
    FILES
-  #  extractFeatures.srv
-  #  extractFAST.srv
-  #  extractSIFT.srv
-  #  extractORB.srv
-  #  extractSURF.srv
-  #  extractAKAZE.srv
-  #  extractBRISK.srv
-  #  updateSettings.srv
-  #  rectifiedSettings.srv
-  #  stereoInliers.srv
    resetDataset.srv
    publishImage.srv
    getDatasetInfo.srv
@@ -114,7 +105,7 @@ catkin_python_setup()
    geometry_msgs
    std_msgs
    sensor_msgs
-   front_end
+   bumblebee
  )
 
 ################################################
@@ -169,10 +160,7 @@ include_directories(
   /usr/include
   ${Boost_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
- # ${Structures_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
- # ${vSLAM_FrontEnd_INCLUDE_DIRS}
- # ${AKAZE_INCLUDE_DIRS}
 )
 
 #add_executable(data_node src/data_node.cpp)
