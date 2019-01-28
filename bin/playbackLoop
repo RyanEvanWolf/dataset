@@ -29,21 +29,21 @@ if __name__ == '__main__':
     # print(sys.argv)
     parser = argparse.ArgumentParser()
     parser.add_argument("loop_number",type=int)
-    parser.add_argument("--delayMs",help="Delay in milliseconds between playback",default=1,type=int)
+    parser.add_argument("--delayMs",help="Delay in milliseconds between playback",default=1200,type=int)
     parser.add_argument("--wait",default=1,type=int)
     args,unknown = parser.parse_known_args()
 
     data=vidPublisher("/home/ryan/DATA_A_calB",args.loop_number)
 
     if(args.wait):
-        rospy.Subscriber("live/debug/stereo",PointCloud,updateWait)
+        rospy.Subscriber("/live/debug/deltaStereo",PointCloud,updateWait)
 
     global wait
 
     
     imgIndex=0
     time.sleep(1)
-    while(imgIndex<300):
+    while(imgIndex<len(data.lAbsImgDir)):
         wait=args.wait
         data.publishImageIndex(imgIndex)
         print("Sent ",imgIndex)
@@ -52,6 +52,13 @@ if __name__ == '__main__':
         while(wait):
             time.sleep(0.1)
         time.sleep(args.delayMs/1000.0)
+
+
+
+
+
+
+
         # print(imgIndex)
         # if(imgIndex==0):
         #     data.publishImageIndex(imgIndex)

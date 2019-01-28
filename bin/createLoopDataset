@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 
-from bumblebee.stereo import *
+#,ROIfrmMsg,rmsReprojectionError,getProjections
+import time
 from bumblebee.utils import createDir
 from bumblebee.srv import imageRectification,imageRectificationRequest,imageRectificationResponse
-from bumblebee.drawing import *
 import argparse
 import rospy
 import copy
 import os
 import copy
 import cv2
+import numpy as np
 import pickle
 from cv_bridge import CvBridge
 parser =argparse.ArgumentParser()
@@ -18,6 +19,143 @@ parser.add_argument("rootDatasetImages",
                     type=str)
 parser.add_argument("--CalibrationID",help="The calibration ID used to generate the sequence, typicall A,B, or C",default="A")
 args,unknown=parser.parse_known_args()
+from cv_bridge import CvBridge
+from sensor_msgs.msg import CameraInfo, Image
+def ROIfrmMsg(Msg):
+    return (Msg.x_offset,Msg.y_offset,Msg.width,Msg.height)#x,y,w,h
+
+def getRectificationMappings(serverNodeName="/bumblebee_configuration",left=True):
+    cvb=CvBridge()
+    cameraSettings={}
+    if(left):
+        cameraSettings["Mapix"]=cvb.imgmsg_to_cv2(rospy.wait_for_message(serverNodeName+"/Left/intX",Image))
+        cameraSettings["Mapiy"]=cvb.imgmsg_to_cv2(rospy.wait_for_message(serverNodeName+"/Left/intY",Image))
+        cameraSettings["Mapfx"]=cvb.imgmsg_to_cv2(rospy.wait_for_message(serverNodeName+"/Left/floatX",Image))
+        cameraSettings["Mapfy"]=cvb.imgmsg_to_cv2(rospy.wait_for_message(serverNodeName+"/Left/floatY",Image))
+    else:
+        cameraSettings["Mapix"]=cvb.imgmsg_to_cv2(rospy.wait_for_message(serverNodeName+"/Right/intX",Image))
+        cameraSettings["Mapiy"]=cvb.imgmsg_to_cv2(rospy.wait_for_message(serverNodeName+"/Right/intY",Image))
+        cameraSettings["Mapfx"]=cvb.imgmsg_to_cv2(rospy.wait_for_message(serverNodeName+"/Right/floatX",Image))
+        cameraSettings["Mapfy"]=cvb.imgmsg_to_cv2(rospy.wait_for_message(serverNodeName+"/Right/floatY",Image))  
+    return cameraSettings
+
+def getCameraSettingsFromServer(serverNodeName="/bumblebee_configuration",cameraType="subROI",full=False):
+    cvb=CvBridge()
+    ##assumes a node has been declared
+    cameraSettings={}
+    cameraSettings["FULL"]=full
+    print(serverNodeName,cameraType)
+    cameraSettings["Q"]=cvb.imgmsg_to_cv2(rospy.wait_for_message(serverNodeName+"/Q",Image))
+    if(full):
+        cameraSettings["Lmap"]=getRectificationMappings()
+        cameraSettings["Rmap"]=getRectificationMappings(left=False)
+    print(serverNodeName+"/Left/"+cameraType+"/CameraInfo")
+    print(serverNodeName+"/Right/"+cameraType+"/CameraInfo")
+    cameraSettings["lInfo"]=rospy.wait_for_message(serverNodeName+"/Left/"+cameraType+"/CameraInfo",CameraInfo)
+    cameraSettings["rInfo"]=rospy.wait_for_message(serverNodeName+"/Right/"+cameraType+"/CameraInfo",CameraInfo)
+    cameraSettings["Pl"]=np.zeros((3,4),dtype=np.float64)
+    cameraSettings["Pr"]=np.zeros((3,4),dtype=np.float64)
+    for row in range(0,3):
+            for col in range(0,4):
+                cameraSettings["Pl"][row,col]=cameraSettings["lInfo"].P[row*4 +col]
+                cameraSettings["Pr"][row,col]=cameraSettings["rInfo"].P[row*4 +col]
+
+
+    # cameraSettings["roi_width"]=cameraSettings["lInfo"].roi.width
+    # cameraSettings["roi_height"]=cameraSettings["lInfo"].roi.height
+    # cameraSettings["roi_x"]=cameraSettings["lInfo"].roi.x_offset
+    # cameraSettings["roi_y"]=cameraSettings["lInfo"].roi.y_offset
+    # cameraSettings["roi"]=[cameraSettings["roi_x"],cameraSettings["roi_y"],cameraSettings["roi_width"],cameraSettings["roi_height"]]
+
+    cameraSettings["width"]=cameraSettings["lInfo"].width
+    cameraSettings["height"]=cameraSettings["lInfo"].height
+    cameraSettings["f"]=cameraSettings["Pl"][0,0]
+    cameraSettings["pp"]=(cameraSettings["Pl"][0:2,2][0],
+                        cameraSettings["Pl"][0:2,2][1])
+    cameraSettings["k"]=cameraSettings["Pl"][0:3,0:3]
+
+    print("Loaded")
+    return cameraSettings
+
+
+class stereoCamera:
+    def __init__(self,cameraType="subROI",configurationTopic=""):
+        self.kSettings={}
+        if(configurationTopic==""):
+            self.kSettings=getCameraSettingsFromServer(cameraType=cameraType,full=True)
+        else:
+            self.kSettings=getCameraSettingsFromServer(configurationTopic,cameraType,full=True)
+
+    def checkWithinROI(self,pt,left=True):
+        if(left):
+            return checkWithinROI(pt,ROIfrmMsg(self.kSettings["lInfo"].roi))
+        else:
+            return checkWithinROI(pt,ROIfrmMsg(self.kSettings["rInfo"].roi))
+    def predictPoint(self,Xworld):
+        leftPixel=self.kSettings["Pl"].dot(Xworld)
+        leftPixel/=leftPixel[2,0]
+        rightPixel=self.kSettings["Pr"].dot(Xworld)
+        rightPixel/=rightPixel[2,0]
+        return leftPixel,rightPixel 
+    def reproject(self,l,r):
+        xPred=cv2.triangulatePoints(self.kSettings["Pl"],
+                                self.kSettings["Pr"],
+                                (l[0,0],l[1,0]),
+                                (r[0,0],r[1,0]))   
+        
+        return xPred/xPred[3,0]
+    def reproject2(self,l,r):
+        dispVect=np.ones((4,1),dtype=np.float64)
+        disparity=l[0,0]-r[0,0]
+        dispVect[0,0]=l[0,0]
+        dispVect[1,0]=l[1,0]
+        dispVect[2,0]=disparity
+        xPred=self.kSettings["Q"].dot(dispVect)
+        return xPred/xPred[3,0]
+    def debayerImage(self,bumblebeeImage):
+        totalTime=0
+        startTime=time.time()
+        limage=copy.deepcopy(bumblebeeImage[self.kSettings["height"]:self.kSettings["height"]*2,0:self.kSettings["width"]])
+        startTime=time.time()
+        limage=cv2.cvtColor(limage,cv2.COLOR_BAYER_BG2GRAY)
+        diff=time.time()-startTime
+        totalTime+=diff
+        
+        rimage=copy.deepcopy(bumblebeeImage[0:self.kSettings["height"],0:self.kSettings["width"]])
+        startTime=time.time()
+        rimage=cv2.cvtColor(rimage,cv2.COLOR_BAYER_BG2GRAY)
+        diff=time.time()-startTime
+        totalTime+=diff
+        return copy.deepcopy(limage),copy.deepcopy(rimage),totalTime
+    def rectifyImage(self,leftImg,rightImg,floatingRect=True):
+        totalTime=0
+        if(floatingRect):
+            startTime=time.time()
+            lr=copy.deepcopy(cv2.remap(leftImg,
+                                self.kSettings["Lmap"]["Mapfx"],self.kSettings["Lmap"]["Mapfy"],cv2.INTER_LINEAR))
+            diff=time.time()-startTime
+            totalTime+=diff
+
+            startTime=time.time()
+            rr=copy.deepcopy(cv2.remap(rightImg,
+                                self.kSettings["Rmap"]["Mapfx"],self.kSettings["Rmap"]["Mapfy"],cv2.INTER_LINEAR))
+            diff=time.time()-startTime
+            totalTime+=diff
+        else:
+            startTime=time.time()
+            lr=copy.deepcopy(cv2.remap(leftImg,
+                                self.kSettings["Lmap"]["Mapix"],self.kSettings["Rmap"]["Mapiy"],cv2.INTER_LINEAR))
+            diff=time.time()-startTime
+            totalTime+=diff
+
+            startTime=time.time()
+            rr=copy.deepcopy(cv2.remap(rightImg,
+                                self.kSettings["Rmap"]["Mapix"],self.kSettings["Rmap"]["Mapiy"],cv2.INTER_LINEAR))
+            diff=time.time()-startTime
+            totalTime+=diff
+        return  lr,rr,totalTime
+
+
 
 rospy.init_node("loop_dataset_create")
 bumblebee=stereoCamera()
@@ -42,13 +180,13 @@ timingResults["Debayer"]=[]
 timingResults["Rectification"]=[]
 timingResults["intRectification"]=[]
 
-jetsonResults=copy.deepcopy(timingResults)
+#jetsonResults=copy.deepcopy(timingResults)
 
 
 serviceName="/bumblebee_rectification_node/singleImageRectification"
 print("waiting for Service : "+serviceName)
-rospy.wait_for_service(serviceName)
-serv=rospy.ServiceProxy(serviceName,imageRectification)
+#rospy.wait_for_service(serviceName)
+#serv=rospy.ServiceProxy(serviceName,imageRectification)
 
 for i in range(0,len(imageFiles)):
     newBumblebeeRectification=imageRectificationRequest()
@@ -57,7 +195,7 @@ for i in range(0,len(imageFiles)):
     fullImage=cv2.imread(currentImageFile,cv2.IMREAD_GRAYSCALE)
     newBumblebeeRectification.fullImage=cvb.cv2_to_imgmsg(fullImage)
     cvb.cv2_to_imgmsg(fullImage)
-    result=serv(newBumblebeeRectification)
+    #result=serv(newBumblebeeRectification)
 
     ld,rd,lt=bumblebee.debayerImage(fullImage)
     lrect,rRect,lrectT=bumblebee.rectifyImage(ld,rd)
@@ -70,16 +208,16 @@ for i in range(0,len(imageFiles)):
     timingResults["Debayer"].append(lt*1000)#convert them all to milliseconds
     timingResults["Rectification"].append(lrectT*1000)
     timingResults["intRectification"].append(lrectint*1000)
-    jetsonResults["Debayer"].append(result.debayerTime*1000)
-    jetsonResults["Rectification"].append(result.rectificationTime*1000)
-    jetsonResults["intRectification"].append(result.intRectificationTime*1000)
+    #jetsonResults["Debayer"].append(result.debayerTime*1000)
+    #jetsonResults["Rectification"].append(result.rectificationTime*1000)
+    #jetsonResults["intRectification"].append(result.intRectificationTime*1000)
 
 f=open(rootDir+"/i7_timing.p","wb")
 pickle.dump(timingResults,f)
 f.close()
-f=open(rootDir+"/jetson_timing.p","wb")
-pickle.dump(jetsonResults,f)
-f.close()
+#f=open(rootDir+"/jetson_timing.p","wb")
+#pickle.dump(jetsonResults,f)
+#f.close()
 
 
 

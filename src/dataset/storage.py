@@ -56,3 +56,6 @@ class vidPublisher(vidDirectories):
         if(index>=0 and index<len(self.lAbsImgDir)):
             self.publ.publish(self.cvb.cv2_to_imgmsg(loadImages([self.lAbsImgDir[index]])[0]))
             self.pubr.publish(self.cvb.cv2_to_imgmsg(loadImages([self.rAbsImgDir[index]])[0]))
+            return True
+        else:
+            return False

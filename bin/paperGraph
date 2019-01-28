@@ -1,0 +1,142 @@
+#!/usr/bin/env python
+
+from bumblebee.motion import *
+
+from simulation.path import *
+from simulation.settings import *
+import tf.transformations
+from geometry_msgs.msg import TransformStamped,Transform,Quaternion,Vector3
+from bumblebee.baseTypes import basicGraph,slidingGraph
+from simulation.dataset import stereo_simulator_node
+import pickle
+import os
+import rospy
+import matplotlib.patches as mpatches
+import time
+import scipy.stats.mstats as stat
+from scipy.stats import norm,cauchy
+import matplotlib.pyplot as plt
+import matplotlib.style as sty
+from mpl_toolkits.mplot3d import Axes3D
+sty.use("seaborn")
+import matplotlib as mpl
+label_size = 18
+mpl.rcParams['xtick.labelsize'] = label_size 
+mpl.rcParams['ytick.labelsize'] = label_size 
+
+
+from tf import TransformListener,TransformBroadcaster
+from tf.transformations import *
+import numpy as np
+
+out="/home/ryan/recording/poseGraph/ORB/summary"
+saveDir="/home/ryan/outPaper"
+fList=os.listdir(out)
+#####################
+###
+
+noisePatches=[mpatches.Patch(color=(0.1,0,0.8,0.4), label=r'$Slow$'),
+                mpatches.Patch(color=(0.8,0,0.1,0.4), label=r'$Fast$')]
+filesList=["5000_A1","5000_A2","5000_A3","5000_A12","5000_A13","5000_A14"]
+keyList=["$Slow$","$Fast$"]
+cList=[(0.1,0,0.8,0.6),(0.8,0,0.1,0.6)]#,(0.2,.7,0,0.3)]
+inlier=[]
+tracks=[]
+rms=[]
+delta=[]
+ratio=[]
+
+for f in filesList:
+    with open(out+"/"+f+".inlier","r") as inFile:
+        inlier.append(pickle.load(inFile))
+    with open(out+"/"+f+".tracks","r") as inFile:
+        tracks.append(pickle.load(inFile))
+    with open(out+"/"+f+".inlierRMS","r") as inFile:
+        rms.append(pickle.load(inFile))
+    with open(out+"/"+f+".delta","r") as inFile:
+        delta.append(pickle.load(inFile))
+    a=[]
+    for j in range(len(tracks[-1])):
+        try:
+            a.append(float(inlier[-1][j])/float(tracks[-1][j]))
+        except:
+            a.append(0)
+    ratio.append(a)
+###################
+###inlierTracks
+
+
+fig1,ax1=plt.subplots(nrows=1, ncols=1)
+for a in range(len(inlier)):
+    time=np.arange(0,len(inlier[a]))/float(len(inlier[a]))
+    if(a<3):
+        ax1.plot(time,inlier[a],c=cList[0])#,label=keyList[a],c=cList[a])
+    else:
+        ax1.plot(time,inlier[a],c=cList[1])
+
+ax1.legend(handles=noisePatches,loc='upper center',fontsize=16)
+ax1.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
+
+fig1.savefig(saveDir+"/tracks.png",bbox_inches='tight')
+
+# fig2,ax2=plt.subplots(nrows=1, ncols=1)
+# for a in range(len(inlier)):
+#     ax2.scatter(ratio[a],rms[a],label=str(a))
+
+# fig2.savefig(saveDir+"/ratio.png")
+
+
+
+outlierVal=1/15.0
+fig3,ax3=plt.subplots(nrows=1, ncols=1)
+ax3.axvline(outlierVal,0,1,linestyle='--')
+ax3.axvline(0,0,1,linestyle='--')
+for a in range(len(inlier)):
+    if(a<3):
+        ax3.scatter(delta[a][5],rms[a],c=cList[0])
+    else:
+        ax3.scatter(delta[a][5],rms[a],c=cList[1])
+ax3.legend(handles=noisePatches,loc='lower left',fontsize=16)
+ax3.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
+
+fig3.savefig(saveDir+"/zForward.png",bbox_inches='tight')
+
+
+fig4,ax4=plt.subplots(nrows=1, ncols=1)
+for a in range(len(inlier)):
+    time=np.arange(0,len(inlier[a]))/float(len(inlier[a]))   
+    if(a<3):
+        ax4.plot(time,delta[a][2],c=cList[0],linewidth=0.8)
+    else:
+        ax4.plot(time,delta[a][2],c=cList[1],linewidth=0.8)
+ax4.legend(handles=noisePatches,loc='upper center',fontsize=16)
+ax4.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
+
+fig4.savefig(saveDir+"/yaw.png",bbox_inches='tight')
+
+fig6,ax6=plt.subplots(nrows=1, ncols=1)
+ax6.set_xlim(0,1)
+ax6.set_ylim(0,1)
+ax6.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
+goodgroup=[[],[]]
+# badgroup=[[],[]]
+
+
+for j in range(len(delta)):
+    for index in range(len(delta[j][5])):
+        z=delta[j][5][index]    
+        if((z>0)and(z<outlierVal)):
+            goodgroup[0].append(ratio[j][index])
+            goodgroup[1].append(rms[j][index])
+            ax6.scatter(goodgroup[0],goodgroup[1],s=0.8,color=(0,1,0.4,0.7))
+
+
+
+
+
+# ax7.scatter(badgroup[0],badgroup[1],color=(1,0,0,0.3))
+# ax7.set_xlim(0,1)
+# ax7.set_ylim(0,1)
+
+fig6.savefig(saveDir+"/inlierScatter.png",bbox_inches='tight')
+# fig7.savefig(saveDir+"/outlierScatter.png")

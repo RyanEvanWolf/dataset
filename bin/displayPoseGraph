@@ -1,0 +1,169 @@
+#!/usr/bin/env python
+
+from bumblebee.motion import *
+
+from simulation.path import *
+from simulation.settings import *
+import tf.transformations
+from geometry_msgs.msg import TransformStamped,Transform,Quaternion,Vector3
+from bumblebee.baseTypes import basicGraph,slidingGraph
+from simulation.dataset import stereo_simulator_node
+import pickle
+import os
+import rospy
+
+import time
+import scipy.stats.mstats as stat
+from scipy.stats import norm,cauchy
+import matplotlib.pyplot as plt
+import matplotlib.style as sty
+from mpl_toolkits.mplot3d import Axes3D
+sty.use("seaborn")
+
+from std_msgs.msg import ColorRGBA
+from tf import TransformListener,TransformBroadcaster
+from tf.transformations import *
+import numpy as np
+
+
+outDisplays=[]
+#fileLocations=["/media/ryan/EXTRA/Simulation/400/data.simulation"]#,"/media/ryan/EXTRA/Simulation/400/G_0.1.gauss"
+                #,"/media/ryan/EXTRA/Simulation/400/G_0.2.gauss","/media/ryan/EXTRA/Simulation/400/G_0.3.gauss","/media/ryan/EXTRA/Simulation/400/G_0.05.gauss"]
+#fileLocations=["/home/ryan/recording/poseGraph/5000_B1_full.pose"]#,
+                #"/home/ryan/recording/poseGraph/ORB/5000_A2.pose",
+               # "/home/ryan/recording/poseGraph/ORB/5000_A3.pose"]
+# fileLocations=["/home/ryan/recording/poseGraph/ORB/5000_A12.pose"]#,
+#                 #"/home/ryan/recording/poseGraph/ORB/5000_A2.pose",
+#                # "/home/ryan/recording/poseGraph/ORB/5000_A3.pose"]
+
+
+fileLocations=["/home/ryan/recording/poseGraph/ORB/5000_A1.pose"]
+mapPublish=[1,0,0,0,0]
+
+
+rospy.init_node("display_pose")
+
+for i in range(len(fileLocations)):
+        outDisplays.append(slidingGraph("replay_"+str(i),False))
+        f=fileLocations[i]
+        with open(f,"r") as fread:
+                print("loading "+f)
+                outDisplays[-1].G=pickle.load(fread)
+                outDisplays[-1].publishPoses()
+                if(mapPublish[i]):
+                        outDisplays[-1].publishGlobalPoints(ColorRGBA(0.1,0,1,0.7))
+        print("loaded")
+# rospy.init_node("display_pose")
+
+# outGraph=slidingGraph("liveOut",False)
+# print("new SLiding Graph")
+# with open(f,"r") as fread:
+#         print(f)
+#         outGraph.G=pickle.load(fread)
+
+
+# data=outGraph.G.getDeltaMotion()
+
+
+
+# fig,(ax1,ax2,ax3)=plt.subplots(nrows=3, ncols=1,sharex=True)#,sharex=True,squeeze=True)
+# fig2,(ax4,ax5,ax6)=plt.subplots(nrows=3, ncols=1)
+
+# ax1.set_xlabel(r"$\beta^\circ$")
+# ax2.set_xlabel(r"$\gamma^\circ$")
+# ax3.set_xlabel(r"$\alpha^\circ$")
+
+# ax4.set_xlabel("X (m)")
+# ax5.set_xlabel("Y (m)")
+# ax6.set_xlabel("Z (m)")
+# ax5.set_ylabel("Total $KF$")
+# ax2.set_ylabel("Total $KF$")
+
+# fig.suptitle("Orientation $")
+# fig2.suptitle("Translation $")
+# setAxis=(ax1,ax2,ax3,ax4,ax5,ax6)
+
+# gCOlor=[(1,0,0,0.2),(0,1,0,.2),(0,0,1,0.2),(0.5,0.5,0,0.2)]
+# lineColor=[(1,0,0,.8),(0,1,0,.8),(0,0,1,0.8),(0.5,0.5,0,0.8)]
+# gNames=["0.05","0.1","0.2","0.3"]
+
+# time=np.arange(0,len(data[0]))/float(len(data[0]))
+
+
+# inLi=outGraph.G.getInlierRMS()
+# inMot=outGraph.G.getInlierMotion()
+
+# fig3,(axa)=plt.subplots(nrows=1,ncols=1)
+# fig4,(axb)=plt.subplots(nrows=1,ncols=1)
+# fig5,(axc)=plt.subplots(nrows=1,ncols=1)
+
+# axa.plot(time,inLi)
+
+# axb.plot(time,inMot)
+
+# axc.scatter(inMot,inLi)
+
+
+# for i in range(6):
+#     setAxis[i].plot(time,data[i],linewidth=0.5)
+#     # error=list(np.array(gaussGraphs[g][i])-np.array(ideal[i]))
+#     # setAxis[i].hist(error,color=gCOlor[g],bins=26,label=gNames[g])
+
+#     # fake=setAxis[i].twinx()
+#     # mu,sigma = norm.fit(error)
+#     # print(gNames[g],i,mu
+# data=outGraph.G.getDeltaMotion()
+
+
+
+# fig,(ax1,ax2,ax3)=plt.subplots(nrows=3, ncols=1,sharex=True)#,sharex=True,squeeze=True)
+# fig2,(ax4,ax5,ax6)=plt.subplots(nrows=3, ncols=1)
+
+# ax1.set_xlabel(r"$\beta^\circ$")
+# ax2.set_xlabel(r"$\gamma^\circ$")
+# ax3.set_xlabel(r"$\alpha^\circ$")
+
+# ax4.set_xlabel("X (m)")
+# ax5.set_xlabel("Y (m)")
+# ax6.set_xlabel("Z (m)")
+# ax5.set_ylabel("Total $KF$")
+# ax2.set_ylabel("Total $KF$")
+
+# fig.suptitle("Orientation $")
+# fig2.suptitle("Translation $")
+# setAxis=(ax1,ax2,ax3,ax4,ax5,ax6)
+
+# gCOlor=[(1,0,0,0.2),(0,1,0,.2),(0,0,1,0.2),(0.5,0.5,0,0.2)]
+# lineColor=[(1,0,0,.8),(0,1,0,.8),(0,0,1,0.8),(0.5,0.5,0,0.8)]
+# gNames=["0.05","0.1","0.2","0.3"]
+
+# time=np.arange(0,len(data[0]))/float(len(data[0]))
+
+
+# inLi=outGraph.G.getInlierRMS()
+# inMot=outGraph.G.getInlierMotion()
+
+# fig3,(axa)=plt.subplots(nrows=1,ncols=1)
+# fig4,(axb)=plt.subplots(nrows=1,ncols=1)
+# fig5,(axc)=plt.subplots(nrows=1,ncols=1)
+
+# axa.plot(time,inLi)
+
+# axb.plot(time,inMot)
+
+# axc.scatter(inMot,inLi)
+
+
+# for i in range(6):
+#     setAxis[i].plot(time,data[i],linewidth=0.5)
+#     # error=list(np.array(
+#     # fake.plot(x_pdf,y_pdf,color=lineColor[g],linestyle='dashed')
+#     # # ax2.set_ylabel('Probability Density Function')
+#     # fake.grid(False)
+#     # fake.axis('off')
+#     # setAxis[i].legend()
+
+
+
+
+rospy.spin()
