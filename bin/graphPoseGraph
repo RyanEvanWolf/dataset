@@ -11,7 +11,7 @@ from simulation.dataset import stereo_simulator_node
 import pickle
 import os
 import rospy
-
+import copy
 import time
 import scipy.stats.mstats as stat
 from scipy.stats import norm,cauchy
@@ -20,10 +20,10 @@ import matplotlib.style as sty
 from mpl_toolkits.mplot3d import Axes3D
 sty.use("seaborn")
 import matplotlib as mpl
-label_size = 13
+label_size = 20
 mpl.rcParams['xtick.labelsize'] = label_size 
 mpl.rcParams['ytick.labelsize'] = label_size 
-
+import matplotlib.patches as mpatches
 
 from tf import TransformListener,TransformBroadcaster
 from tf.transformations import *
@@ -33,310 +33,171 @@ out="/home/ryan/recording/poseGraph/ORB/summary"
 #saveDir="/home/ryan/outImages/slow"
 saveDir="/home/ryan/outImages/fast"
 fList=os.listdir(out)
-#####################
-###
 
-#filesList=["5000_A1","5000_A2","5000_A3"]
+
+
+def getGraphs(filesList,keyList,cList,speedName):
+    
+    saveDir="/home/ryan/outImages/"+speedName
+    inlier=[]
+    tracks=[]
+    rms=[]
+    delta=[]
+    ratio=[]
+
+    for f in filesList:
+        with open(out+"/"+f+".inlier","r") as inFile:
+            inlier.append(pickle.load(inFile))
+        with open(out+"/"+f+".tracks","r") as inFile:
+            tracks.append(pickle.load(inFile))
+        with open(out+"/"+f+".inlierRMS","r") as inFile:
+            rms.append(pickle.load(inFile))
+        with open(out+"/"+f+".delta","r") as inFile:
+            delta.append(pickle.load(inFile))
+        a=[]
+        for j in range(len(tracks[-1])):
+            try:
+                a.append(float(inlier[-1][j])/float(tracks[-1][j]))
+            except:
+                a.append(0)
+        ratio.append(a)
+
+
+
+    fig1,ax1=plt.subplots(nrows=1, ncols=1)
+    for a in range(len(inlier)):
+        time=np.arange(0,len(inlier[a]))/float(len(inlier[a]))   
+        ax1.plot(time,inlier[a],label=keyList[a],c=cList[a])
+    ax1.legend(fontsize=18)
+    fig1.savefig(saveDir+"/tracks.png",bbox_inches='tight',dpi=200)
+
+
+    fig2,ax2=plt.subplots(nrows=1, ncols=1)
+    for a in range(len(inlier)):
+        ax2.scatter(ratio[a],rms[a],label=str(a))
+    fig2.savefig(saveDir+"/ratio.png",bbox_inches='tight',dpi=200)
+
+    ###########
+    ##change the alpha value of the colours for zforward just to make it more see through
+    scOlor=[]
+    for k in cList:
+        scOlor.append((k[0],k[1],k[2],0.3))
+    print(scOlor,cList)
+
+
+    outlierVal=1/15.0
+    fig3,ax3=plt.subplots(nrows=1, ncols=1)
+    ax3.axvline(outlierVal,0,1,linestyle='--')
+    ax3.axvline(0,0,1,linestyle='--')
+    noisePatches=[]
+    for a in range(len(inlier)):
+        ax3.scatter(delta[a][5],rms[a],c=scOlor[a])
+        noisePatches.append(mpatches.Patch(color=cList[a],label=keyList[a]))
+    
+    ax3.grid(color=(0,0,0),alpha=0.4)
+
+    ax3.legend(handles=noisePatches,fontsize=18)
+    fig3.savefig(saveDir+"/zForward.png",bbox_inches='tight',dpi=200)
+
+    fig4,ax4=plt.subplots(nrows=1, ncols=1)
+    for a in range(len(inlier)):
+        time=np.arange(0,len(inlier[a]))/float(len(inlier[a]))   
+        ax4.plot(time,delta[a][2],label=keyList[a],c=cList[a])
+    ax4.grid(color=(0,0,0),alpha=0.4)
+    ax4.legend(fontsize=18)
+    
+
+    fig4.savefig(saveDir+"/yaw.png",bbox_inches='tight',dpi=200)
+    goodgroup=[[],[]]
+    badgroup=[[],[]]
+
+
+    for j in range(len(delta)):
+        for index in range(len(delta[j][5])):
+            z=delta[j][5][index]    
+            if((z>0)and(z<outlierVal)):
+                goodgroup[0].append(ratio[j][index])
+                goodgroup[1].append(rms[j][index])
+            else:
+                badgroup[0].append(ratio[j][index])
+                badgroup[1].append(rms[j][index])
+
+    fig6,ax6=plt.subplots(nrows=1, ncols=1)
+    ax6.scatter(goodgroup[0],goodgroup[1],color=(0,0,1,0.4))
+    ax6.set_xlim(0,1)
+    ax6.set_ylim(0,1)
+    fig7,ax7=plt.subplots(nrows=1, ncols=1)
+
+    ax7.scatter(badgroup[0],badgroup[1],color=(1,0,0,0.4))
+    ax7.set_xlim(0,1)
+    ax7.set_ylim(0,1)
+
+
+    ax6.set_xticks([0,0.25,0.5,0.75,1.0])
+    ax6.set_yticks([0,0.25,0.5,0.75,1.0])
+    ax6.grid(color=(0,0,0))
+    fig6.savefig(saveDir+"/inlierScatter.png",bbox_inches='tight',dpi=200)
+    ax7.set_xticks([0,0.25,0.5,0.75,1.0])
+    ax7.set_yticks([0,0.25,0.5,0.75,1.0])
+    ax7.grid(color=(0,0,0))
+    fig7.savefig(saveDir+"/outlierScatter.png",bbox_inches='tight',dpi=200)
+
 filesList=["5000_A12","5000_A13","5000_A14"]
-#filesList=["5000_A5","5000_A6"]
-keyList=["A12","A13","A14"]
-#keyList=["A5","A6"]
-#keyList=["A1","A2","A3"]
-cList=[(0.5,0,0.5,0.3),(1,0,0.2,0.3),(0.2,.7,0,0.3)]
-inlier=[]
-tracks=[]
-rms=[]
-delta=[]
-ratio=[]
-
-for f in filesList:
-    with open(out+"/"+f+".inlier","r") as inFile:
-        inlier.append(pickle.load(inFile))
-    with open(out+"/"+f+".tracks","r") as inFile:
-        tracks.append(pickle.load(inFile))
-    with open(out+"/"+f+".inlierRMS","r") as inFile:
-        rms.append(pickle.load(inFile))
-    with open(out+"/"+f+".delta","r") as inFile:
-        delta.append(pickle.load(inFile))
-    a=[]
-    for j in range(len(tracks[-1])):
-        try:
-            a.append(float(inlier[-1][j])/float(tracks[-1][j]))
-        except:
-            a.append(0)
-    ratio.append(a)
-###################
-###inlierTracks
-
-
-fig1,ax1=plt.subplots(nrows=1, ncols=1)
-for a in range(len(inlier)):
-    time=np.arange(0,len(inlier[a]))/float(len(inlier[a]))   
-    ax1.plot(time,inlier[a],label=keyList[a],c=cList[a])
-ax1.legend()
-fig1.savefig(saveDir+"/tracks.png")
-
-fig2,ax2=plt.subplots(nrows=1, ncols=1)
-for a in range(len(inlier)):
-    ax2.scatter(ratio[a],rms[a],label=str(a))
-
-fig2.savefig(saveDir+"/ratio.png")
-outlierVal=1/15.0
-fig3,ax3=plt.subplots(nrows=1, ncols=1)
-ax3.axvline(outlierVal,0,1,linestyle='--')
-ax3.axvline(0,0,1,linestyle='--')
-for a in range(len(inlier)):
-    ax3.scatter(delta[a][5],rms[a],label=keyList[a],c=cList[a])
-ax3.legend()
-
-fig3.savefig(saveDir+"/zForward.png")
-
-
-fig4,ax4=plt.subplots(nrows=1, ncols=1)
-for a in range(len(inlier)):
-    time=np.arange(0,len(inlier[a]))/float(len(inlier[a]))   
-    ax4.plot(time,delta[a][2],label=keyList[a],c=cList[a])
-ax4.legend()
-
-fig4.savefig(saveDir+"/yaw.png")
-
-
-goodgroup=[[],[]]
-badgroup=[[],[]]
-
-
-for j in range(len(delta)):
-    for index in range(len(delta[j][5])):
-        z=delta[j][5][index]    
-        if((z>0)and(z<outlierVal)):
-            goodgroup[0].append(ratio[j][index])
-            goodgroup[1].append(rms[j][index])
-        else:
-            # if(np.isnan(rms[1][j])):
-            #     pass
-            # else:
-
-            badgroup[0].append(ratio[j][index])
-            badgroup[1].append(rms[j][index])
-
-fig6,ax6=plt.subplots(nrows=1, ncols=1)
-ax6.scatter(goodgroup[0],goodgroup[1],color=(0,0,1,0.3))
-ax6.set_xlim(0,1)
-ax6.set_ylim(0,1)
-fig7,ax7=plt.subplots(nrows=1, ncols=1)
-
-ax7.scatter(badgroup[0],badgroup[1],color=(1,0,0,0.3))
-ax7.set_xlim(0,1)
-ax7.set_ylim(0,1)
-
-fig6.savefig(saveDir+"/inlierScatter.png")
-fig7.savefig(saveDir+"/outlierScatter.png")
-
-# for j in range(len(delta[1][5])):
-#     z=delta[1][5][j]
-#     if((z>0)and(z<1/15.0)):
-#         goodgroup[0].append(ratio[1][j])
-#         goodgroup[1].append(rms[1][j])
-#     else:
-#         # if(np.isnan(rms[1][j])):
-#         #     pass
-#         # else:
-
-#         badgroup[0].append(ratio[1][j])
-#         badgroup[1].append(rms[1][j])
-# print(len(badgroup[0]),len(badgroup[1]))
-# fig5,ax5=plt.subplots(nrows=1, ncols=1)
+keyList=[r"$A_{12}^{Fast}$",r"$A_{13}^{Fast}$",r"$A_{14}^{Fast}$"]
+cList=[(0.5,0,0.5,0.6),(1,0,0.2,0.6),(0.2,.7,0,0.6)]
 
-# ax5.scatter(goodgroup[0],goodgroup[1],color=(0,0,1,0.3))
-# ax5.scatter(badgroup[0],badgroup[1],color=(1,0,0,0.3))
-# print(len(goodgroup[0]),len(badgroup[1]))
+getGraphs(filesList,keyList,cList,'fast')
 
+filesList=["5000_A5","5000_A6"]
+keyList=[r"$A_{5}^{Medium}$",r"$A_{6}^{Medium}$"]
+cList=[(0.5,0,0.5,0.6),(0.2,.7,0,0.6)]
 
-# hist, xedges, yedges = np.histogram2d(goodgroup[0],goodgroup[1], bins=15)#np.sqrt(n_points))
+getGraphs(filesList,keyList,cList,'medium')
 
-# fig2D = plt.figure()
-# ax2D = fig2D.add_subplot(111)
-# ax2D.contourf(hist, interpolation='nearest', 
-#               extent=(xedges[0], xedges[-1], yedges[0], yedges[-1]))
 
-# hist, xedges, yedges = np.histogram2d(badgroup[0],badgroup[1], bins=15)#np.sqrt(n_points))
+filesList=["5000_A1","5000_A2","5000_A3"]
+keyList=[r"$A_{1}^{Slow}$",r"$A_{2}^{Slow}$",r"$A_{3}^{Slow}$"]
+cList=[(0.5,0,0.5,0.6),(1,0,0.2,0.6),(0.2,.7,0,0.6)]
 
-# fig2D = plt.figure()
-# ax2D = fig2D.add_subplot(111)
-# ax2D.contourf(hist, interpolation='nearest', 
-#               extent=(xedges[0], xedges[-1], yedges[0], yedges[-1]))
+getGraphs(filesList,keyList,cList,'slow')
 
-# for a in range(len(inlier)):
-#     for j in range(delta[a])
-#     if((delta[a][5]<0)or(delta[a][5]>1/15.0)):
-#         badGroup[0].append()
 
 
 
 
 
 
-# plt.plot(tracks,'r')
-# plt.plot(inlier,'b')
-# plt.show()
 
 
 
-# fig1,ax1=plt.subplots(nrows=1, ncols=1)
-# ax1.plot(a)
-# ax1.plot(tracks)
-# ax1.plot(inlier)
-# fig2,ax2=plt.subplots(nrows=1, ncols=1)
-# ax2.scatter(a,rms)
 
-# fig3,ax3=plt.subplots(nrows=1, ncols=1)
-# ax3.scatter(delta[2],a)
-#plt.show()
 
 
-# replayFiles=["/home/ryan/recording/poseGraph/ORB/5000_A12.pose"]#,"/media/ryan/EXTRA/Simulation/50/G_0.3.gauss"]#,"/home/ryan/recording/poseGraph/5000_A2_full.pose"]
-# inlierData=[]
-# rmsData=[]
-# inlierRatio=[]
-# rospy.init_node("graph_poses")
 
 
-# for f in replayFiles:
-#     print("new SLiding Graph")
-#     with open(f,"r") as fread:
-#             print(f)
-#             data=pickle.load(fread)
-#             print("Loaded")
-#             inlierData.append(data.getInlierMotion())
-#             print("inlier")
-#             rmsData.append(data.getInlierRMS())
-#             print("rms")
-#             inlierRatio.append(data.getTotalTracks())
-#             print("totalTrc")
 
-# fig1,ax1=plt.subplots(nrows=1, ncols=1)
 
-# for i in inlierData:
-#     time=np.arange(0,len(i))/float(len(i))
-#     ax1.plot(time,i)
-# fig2,ax2=plt.subplots(nrows=1, ncols=1)
-# count=0
-# for i in rmsData:
-#     time=np.arange(0,len(i))/float(len(i))
-#     ax2.plot(time,i)
-#     for j in range(len(time)):
-#         if(np.isnan(i[j])):
-#             ax2.axvline(time[j],0,1,linewidth=0.1,c=(1,0,0))
-#             count+=1
-#         #     #print([time[j]],[i[j]])
-#         #     ax2.scatter([time[j]],[i[j]])
-#         # else:
-#         #     ax2.scatter([time[j]],[i[j]],c=(1,0,0,1))
-# print(count)  
-# print(len(inlierData[0]),len(rmsData[0]))  
-# ########
-# ##nTracks
-# fig3,ax3=plt.subplots(nrows=1, ncols=1)
-# ax3.set_xlim(0,1)
-# # fig2,ax2=plt.subplots(nrows=1, ncols=1)
-# ax3.scatter(inlierRatio[0],rmsData[0])
-# # #a#x2.scatter(inlierRatio[1],rmsData[1],c=(1,0,0,0.2))
 
 
 
-# plt.show()
 
 
 
-# outGraph=slidingGraph("liveOut",False)
-# print("new SLiding Graph")
-# with open(f,"r") as fread:
-#         print(f)
-#         outGraph.G=pickle.load(fread)
 
-# data=outGraph.G.getDeltaMotion()
 
 
 
-# fig,(ax1,ax2,ax3)=plt.subplots(nrows=3, ncols=1,sharex=True)#,sharex=True,squeeze=True)
-# fig2,(ax4,ax5,ax6)=plt.subplots(nrows=3, ncols=1)
 
-# ax1.set_xlabel(r"$\beta^\circ$")
-# ax2.set_xlabel(r"$\gamma^\circ$")
-# ax3.set_xlabel(r"$\alpha^\circ$")
 
-# ax4.set_xlabel("X (m)")
-# ax5.set_xlabel("Y (m)")
-# ax6.set_xlabel("Z (m)")
-# ax5.set_ylabel("Total $KF$")
-# ax2.set_ylabel("Total $KF$")
 
-# fig.suptitle("Orientation $")
-# fig2.suptitle("Translation $")
-# setAxis=(ax1,ax2,ax3,ax4,ax5,ax6)
 
-# gCOlor=[(1,0,0,0.2),(0,1,0,.2),(0,0,1,0.2),(0.5,0.5,0,0.2)]
-# lineColor=[(1,0,0,.8),(0,1,0,.8),(0,0,1,0.8),(0.5,0.5,0,0.8)]
-# gNames=["0.05","0.1","0.2","0.3"]
 
-# time=np.arange(0,len(data[0]))/float(len(data[0]))
 
 
-# inLi=outGraph.G.getInlierRMS()
-# inMot=outGraph.G.getInlierMotion()
 
-# fig3,(axa)=plt.subplots(nrows=1,ncols=1)
-# fig4,(axb)=plt.subplots(nrows=1,ncols=1)
-# fig5,(axc)=plt.subplots(nrows=1,ncols=1)
 
-# axa.plot(time,inLi)
 
-# axb.plot(time,inMot)
 
-# axc.scatter(inMot,inLi)
 
 
-# for i in range(6):
-#     setAxis[i].plot(time,data[i],linewidth=0.5)
-#     # error=list(np.array(gaussGraphs[g][i])-np.array(ideal[i]))
-#     # setAxis[i].hist(error,color=gCOlor[g],bins=26,label=gNames[g])
 
-
-
-# fig,(ax1,ax2,ax3)=plt.subplots(nrows=3, ncols=1,sharex=True)#,sharex=True,squeeze=True)
-# fig2,(ax4,ax5,ax6)=plt.subplots(nrows=3, ncols=1)
-
-# ax1.set_xlabel(r"$\beta^\circ$")
-# ax2.set_xlabel(r"$\gamma^\circ$")
-# ax3.set_xlabel(r"$\alpha^\circ$")
-
-# ax4.set_xlabel("X (m)")
-# ax5.set_xlabel("Y (m)")
-# ax6.set_xlabel("Z (m)")
-# ax5.set_ylabel("Total $KF$")
-# ax2.set_ylabel("Total $KF$")
-
-# fig.suptitle("Orientation $")
-# fig2.suptitle("Translation $")
-# setAxis=(ax1,ax2,ax3,ax4,ax5,ax6)
-
-# gCOlor=[(1,0,0,0.2),(0,1,0,.2),(0,0,1,0.2),(0.5,0.5,0,0.2)]
-# lineColor=[(1,0,0,.8),(0,1,0,.8),(0,0,1,0.8),(0.5,0.5,0,0.8)]
-# gNames=["0.05","0.1","0.2","0.3"]
-
-# time=np.arange(0,len(data[0]))/float(len(data[0]))
-
-
-# inLi=outGraph.G.getInlierRMS()
-# inMot=outGraph.G.getInlierMotion()
-
-# fig3,(axa)=plt.subplots(nrows=1,ncols=1)
-# fig4,(axb)=plt.subplots(nrows=1,ncols=1)
-# fig5,(axc)=plt.subplots(nrows=1,ncols=1)
-
-# axa.plot(time,inLi)
-
-# axb.plot(time,inMot)
-
-# axc.scatter(inMot,inLi)
-# plt.show()
